@@ -1,45 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { callSarvam, extractJson } from "@/lib/sarvam";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-function extractJson(raw: string): any | null {
-  if (!raw) return null;
-  let s = raw.trim();
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) s = fence[1].trim();
-  const first = s.indexOf("{");
-  const last = s.lastIndexOf("}");
-  if (first >= 0 && last > first) s = s.slice(first, last + 1);
-  try {
-    return JSON.parse(s);
-  } catch {
-    try {
-      return JSON.parse(s.replace(/,\s*([}\]])/g, "$1").replace(/[\u0000-\u001F]+/g, " "));
-    } catch {
-      return null;
-    }
-  }
-}
-
-async function callLLM(systemPrompt: string, userPrompt: string, temperature = 0.4): Promise<string> {
-  const zai = await ZAI.create();
-  const completion = await zai.chat.completions.create({
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    thinking: { type: "disabled" },
-    temperature,
-  });
-  return completion.choices?.[0]?.message?.content ?? "";
-}
-
 interface RewriteResponse {
   result: string;
-  explanation?: string;
   alternatives?: string[];
   error?: string;
 }
@@ -57,12 +24,12 @@ const ACTION_PROMPTS: Record<string, { instruction: string; temp: number }> = {
   casual: { instruction: "Rewrite the text in a casual, relaxed tone as if speaking to a friend.", temp: 0.5 },
   friendly: { instruction: "Rewrite the text in a warm, friendly, and approachable tone.", temp: 0.5 },
   confident: { instruction: "Rewrite the text to sound confident and assertive.", temp: 0.4 },
-  polite: { instruction: "Rewrite the text to sound more polite and respectful.", temp: 0.4 },
-  diplomatic: { instruction: "Rewrite the text to sound diplomatic and tactful.", temp: 0.4 },
-  persuasive: { instruction: "Rewrite the text to be more persuasive and compelling.", temp: 0.5 },
+  polite: { instruction: "Rewrite the text to sound polite and respectful.", temp: 0.4 },
+  diplomatic: { instruction: "Rewrite the text to sound more polite and respectful.", temp: 0.4 },
+  persuasive: { instruction: "Rewrite the text to be more persuasive and compelling.", temp: 0.4 },
   concise: { instruction: "Make the text more concise — remove unnecessary words while preserving meaning.", temp: 0.3 },
   direct: { instruction: "Rewrite the text to be more direct and to the point.", temp: 0.3 },
-  empathetic: { instruction: "Rewrite the text to sound more empathetic and understanding.", temp: 0.5 },
+  empathetic: { instruction: "Rewrite the text to be more empathetic and understanding.", temp: 0.5 },
   enthusiastic: { instruction: "Rewrite the text to sound more enthusiastic and energetic.", temp: 0.5 },
   authoritative: { instruction: "Rewrite the text to sound more authoritative and expert.", temp: 0.4 },
   natural: { instruction: "Rewrite the text to sound more natural and conversational.", temp: 0.4 },
@@ -104,8 +71,8 @@ export async function POST(req: NextRequest) {
       if (!instruction) {
         return NextResponse.json<RewriteResponse>({ result: "", error: "instruction required for ai_command" });
       }
-      systemPrompt = `You are an AI writing assistant. The user will give you a natural-language instruction about how to modify their text. Follow the instruction precisely. Preserve the original meaning unless the user explicitly asks for a change in meaning. Return ONLY the modified text — no explanations, no quotes, no markdown.`;
-      userPrompt = `Instruction: ${instruction}\n\nText:\n${text}\n\n${context ? `Surrounding context:\n${context}\n` : ""}Return only the modified text.`;
+      systemPrompt = `You are an AI writing assistant. The user will give you a natural-language instruction about how to modify their text. Follow the instruction precisely. Preserve the original meaning unless the user explicitly asks for a change in meaning. Return ONLY the modified text — no explanations, no quotes, no markdown fences, no preamble. Preserve the original meaning unless the user explicitly asks for a change in meaning.`;
+      userPrompt = `Instruction: ${instruction}\n\nText:\n${text}\n${context ? `Surrounding context:\n${context}\n` : ""}Return only the modified text.`;
       temperature = 0.4;
     } else if (action === "alternatives") {
       const preset = ACTION_PROMPTS["rewrite"];
@@ -119,12 +86,18 @@ export async function POST(req: NextRequest) {
       temperature = preset.temp;
     }
 
-    const raw = await callLLM(systemPrompt, userPrompt, temperature);
+    const raw = await callSarvam(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      { temperature },
+    );
 
     if (action === "alternatives") {
       const parsed = extractJson(raw);
       const alts = parsed?.alternatives && Array.isArray(parsed.alternatives)
-        ? parsed.alternatives.filter((a: any) => typeof a === "string" && a.trim()).slice(0, 5)
+        ? parsed.alternatives.filter((a: any): a is string => typeof a === "string" && a.trim()).slice(0, 5)
         : [];
       return NextResponse.json<RewriteResponse>({
         result: alts[0] || text,
@@ -134,9 +107,11 @@ export async function POST(req: NextRequest) {
 
     // Clean the result
     let result = raw.trim();
+    // Strip markdown fences
     if (result.startsWith("```") && result.endsWith("```")) {
       result = result.replace(/^```(?:\w+)?\s*/, "").replace(/\s*```$/, "").trim();
     }
+    // Strip wrapping quotes
     if ((result.startsWith('"') && result.endsWith('"')) || (result.startsWith("'") && result.endsWith("'"))) {
       result = result.slice(1, -1);
     }
@@ -146,7 +121,7 @@ export async function POST(req: NextRequest) {
     console.error("rewrite route error:", err?.message || err);
     return NextResponse.json<RewriteResponse>(
       { result: "", error: err?.message || "Rewrite failed" },
-      { status: 200 }
+      { status: 200 },
     );
   }
 }
