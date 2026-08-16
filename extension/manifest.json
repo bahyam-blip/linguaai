@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "LinguaAI — Grammar & Writing Assistant",
+  "version": "1.0.0",
+  "description": "Real-time AI grammar, spelling, vocabulary, tone, and style corrections on any webpage. Powered by Z.ai.",
+  "default_locale": "en",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "LinguaAI",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["activeTab", "storage", "contextMenus", "scripting"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*.png", "popup.html"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "options_page": "options.html",
+  "commands": {
+    "check-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Check grammar of selected text"
+    },
+    "open-popup-editor": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Open LinguaAI popup editor"
+    }
+  }
+}

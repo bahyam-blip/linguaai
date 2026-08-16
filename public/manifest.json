@@ -1,0 +1,37 @@
+{
+  "name": "LinguaAI — Grammar & Writing Assistant",
+  "short_name": "LinguaAI",
+  "description": "Real-time AI grammar, spelling, vocabulary, tone, and style corrections — like Grammarly, but powered by Z.ai.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "categories": ["productivity", "education", "utilities"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New document",
+      "short_name": "New",
+      "description": "Open the editor with a fresh canvas",
+      "url": "/?action=new",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

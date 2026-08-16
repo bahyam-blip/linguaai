@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.LinguaAI" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/emerald</item>
+        <item name="android:colorPrimaryDark">@color/emerald_dark</item>
+        <item name="android:colorAccent">@color/emerald</item>
+        <item name="android:statusBarColor">@color/emerald</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+    <style name="Theme.LinguaAI.NoActionBar" parent="Theme.LinguaAI">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

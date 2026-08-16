@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#fafafa</color>
+    <color name="black">#000000</color>
+    <color name="emerald">#10b981</color>
+    <color name="emerald_dark">#059669</color>
+    <color name="emerald_light">#d1fae5</color>
+    <color name="teal">#0d9488</color>
+    <color name="white">#ffffff</color>
+    <string name="app_name">LinguaAI</string>
+    <string name="tagline">AI grammar &amp; writing assistant</string>
+    <style name="Theme.LinguaAI" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/emerald</item>
+        <item name="android:colorPrimaryDark">@color/emerald_dark</item>
+        <item name="android:colorAccent">@color/emerald</item>
+        <item name="android:statusBarColor">@color/emerald</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+    <style name="Theme.LinguaAI.NoActionBar" parent="Theme.LinguaAI">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

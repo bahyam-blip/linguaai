@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="emerald">#10b981</color>
+    <color name="emerald_dark">#059669</color>
+    <color name="teal">#0d9488</color>
+    <color name="emerald_light">#d1fae5</color>
+    <color name="bg">#fafafa</color>
+    <color name="white">#ffffff</color>
+    <color name="black">#000000</color>
+</resources>
