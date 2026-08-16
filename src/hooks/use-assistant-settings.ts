@@ -40,12 +40,8 @@ function loadSettings(): AssistantSettings {
 }
 
 export function useAssistantSettings() {
-  const [settings, setSettings] = useState<AssistantSettings>(DEFAULT_SETTINGS);
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    setSettings(loadSettings());
-  }, []);
+  // Lazy initializer reads localStorage once on mount — no effect needed.
+  const [settings, setSettings] = useState<AssistantSettings>(loadSettings);
 
   // Persist to localStorage on change
   useEffect(() => {
