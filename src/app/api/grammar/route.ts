@@ -3,9 +3,11 @@ import ZAI from "z-ai-web-dev-sdk";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
+// ---------- Types ----------
 interface GrammarIssue {
-  type: "grammar" | "spelling" | "punctuation" | "style" | "clarity" | "vocabulary";
+  type: "grammar" | "spelling" | "punctuation" | "style" | "clarity" | "vocabulary" | "capitalization";
   original: string;
   suggestion: string;
   explanation: string;
@@ -27,91 +29,85 @@ interface VocabSuggestion {
   reason: string;
 }
 
+interface Stats {
+  wordCount: number;
+  sentenceCount: number;
+  averageWordsPerSentence: number;
+  readabilityScore: number;
+  readingTime: string;
+  uniqueWords: number;
+  lexicalDiversity: number;
+}
+
 interface GrammarResponse {
   issues: GrammarIssue[];
   correctedText: string;
   tone: ToneInfo;
   vocabulary: VocabSuggestion[];
-  stats: {
-    wordCount: number;
-    sentenceCount: number;
-    averageWordsPerSentence: number;
-    readabilityScore: number;
-    readingTime: string;
-    uniqueWords: number;
-    lexicalDiversity: number;
-  };
+  stats: Stats;
   overallScore: number;
+  scores?: {
+    grammar: number;
+    clarity: number;
+    readability: number;
+    vocabulary: number;
+    tone: number;
+    conciseness: number;
+    engagement: number;
+  };
+  goal?: string;
+  error?: string;
 }
 
-const SYSTEM_PROMPT = `You are an advanced grammar and writing assistant, similar to Grammarly but more thorough. Analyze the user's text and return ONLY a valid JSON object (no markdown fences, no extra text) with this exact structure:
+// ---------- Helpers ----------
 
-{
-  "issues": [
-    {
-      "type": "grammar" | "spelling" | "punctuation" | "style" | "clarity" | "vocabulary",
-      "original": "the exact substring from the source text",
-      "suggestion": "the corrected or improved version",
-      "explanation": "short explanation of why this change is recommended",
-      "severity": "critical" | "warning" | "suggestion",
-      "start": <character offset where 'original' begins in the source text, 0-indexed>,
-      "end": <character offset where 'original' ends (exclusive)>
+/** Robustly extract JSON from a possibly-noisy LLM response. */
+function extractJson(raw: string): any | null {
+  if (!raw) return null;
+  let s = raw.trim();
+  // Strip markdown fences ```json ... ``` or ``` ... ```
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  // Find the first { and the last } — extract that slice
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    s = s.slice(first, last + 1);
+  }
+  try {
+    return JSON.parse(s);
+  } catch {
+    // Try a more aggressive cleanup: remove trailing commas
+    try {
+      const cleaned = s
+        .replace(/,\s*([}\]])/g, "$1")
+        .replace(/[\u0000-\u001F]+/g, " ");
+      return JSON.parse(cleaned);
+    } catch {
+      return null;
     }
-  ],
-  "correctedText": "the fully corrected text with all critical and warning issues applied",
-  "tone": {
-    "tone": "e.g. Professional, Casual, Academic, Confident, Friendly, Urgent",
-    "confidence": <0-100>,
-    "formality": "formal" | "neutral" | "informal",
-    "sentiment": "positive" | "neutral" | "negative"
-  },
-  "vocabulary": [
-    {
-      "word": "a word from the text that could be improved",
-      "alternatives": ["better", "stronger", "more precise words"],
-      "reason": "why these alternatives are better"
-    }
-  ],
-  "stats": {
-    "wordCount": <number>,
-    "sentenceCount": <number>,
-    "averageWordsPerSentence": <number>,
-    "readabilityScore": <0-100, Flesch Reading Ease>,
-    "readingTime": "e.g. '1 min 30 sec'",
-    "uniqueWords": <number>,
-    "lexicalDiversity": <0-1, ratio of unique words to total words>
-  },
-  "overallScore": <0-100, overall writing quality score>
+  }
 }
 
-CRITICAL RULES:
-1. Return ONLY the JSON. No prose, no markdown fences.
-2. 'start' and 'end' MUST be exact character offsets in the original text. Count carefully.
-3. 'original' MUST exactly match the substring at [start, end) in the source text.
-4. Be conservative with suggestions — only flag genuine issues.
-5. For vocabulary, suggest 2-4 stronger alternatives per weak word.
-6. Reading time is based on ~200 wpm reading speed.
-7. If the text is empty or too short, return a valid JSON with empty arrays and zero stats.`;
-
-function fallbackStats(text: string) {
+/** Compute basic stats locally as a fallback when LLM stats are missing/invalid. */
+function fallbackStats(text: string): Stats {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
   const wordCount = words.length;
-  const sentenceCount = sentences.length || 1;
-  const uniqueWords = new Set(words.map((w) => w.toLowerCase())).size;
-  const avgWords = wordCount / sentenceCount;
-  // Flesch Reading Ease approximation
+  const sentenceCount = sentences.length || (wordCount > 0 ? 1 : 0);
+  const uniqueWords = new Set(words.map((w) => w.toLowerCase().replace(/[^a-z0-9']/gi, ""))).size;
+  const avgWords = sentenceCount > 0 ? wordCount / sentenceCount : 0;
   const syllables = words.reduce((acc, w) => {
     const m = w.toLowerCase().match(/[aeiouy]+/g);
-    return acc + (m ? m.length : 1);
+    return acc + (m && m.length > 0 ? m.length : 1);
   }, 0);
-  const flesch = wordCount > 0
-    ? Math.max(0, Math.min(100, 206.835 - 1.015 * (wordCount / sentenceCount) - 84.6 * (syllables / wordCount)))
+  const flesch = wordCount > 0 && sentenceCount > 0
+    ? Math.max(0, Math.min(100, 206.835 - 1.015 * (wordCount / sentenceCount) - 84.6 * (syllables / Math.max(wordCount, 1))))
     : 0;
   const minutes = wordCount / 200;
   const m = Math.floor(minutes);
   const s = Math.round((minutes - m) * 60);
-  const readingTime = wordCount === 0 ? "0 sec" : `${m} min ${s} sec`;
+  const readingTime = wordCount === 0 ? "0 sec" : m > 0 ? `${m} min ${s} sec` : `${s} sec`;
   return {
     wordCount,
     sentenceCount,
@@ -123,11 +119,162 @@ function fallbackStats(text: string) {
   };
 }
 
+/** Validate and clean issues array. Drops entries with invalid offsets or missing fields. */
+function validateIssues(issues: any[], text: string): GrammarIssue[] {
+  if (!Array.isArray(issues)) return [];
+  const valid: GrammarIssue[] = [];
+  const seen = new Set<string>();
+  for (const i of issues) {
+    if (!i || typeof i !== "object") continue;
+    const original = String(i.original ?? "").trim();
+    const suggestion = String(i.suggestion ?? "").trim();
+    if (!original || !suggestion || original === suggestion) continue;
+    let start = Number(i.start ?? -1);
+    let end = Number(i.end ?? -1);
+    // If offsets are missing/invalid, try to find the original substring
+    if (!Number.isFinite(start) || start < 0 || start >= text.length) {
+      const idx = text.indexOf(original);
+      if (idx < 0) continue;
+      start = idx;
+      end = idx + original.length;
+    } else {
+      // Validate the slice matches the original; if not, re-find
+      const slice = text.slice(start, end);
+      if (slice !== original) {
+        const idx = text.indexOf(original);
+        if (idx < 0) continue;
+        start = idx;
+        end = idx + original.length;
+      }
+    }
+    if (end <= start || end > text.length) continue;
+    const key = `${start}-${end}-${original}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // Skip overlapping (already-seen ranges)
+    if (valid.some((v) => v.start < end && v.end > start)) continue;
+    const type = (["grammar", "spelling", "punctuation", "style", "clarity", "vocabulary", "capitalization"].includes(i.type)
+      ? i.type
+      : "grammar") as GrammarIssue["type"];
+    const severity = (["critical", "warning", "suggestion"].includes(i.severity)
+      ? i.severity
+      : "suggestion") as GrammarIssue["severity"];
+    valid.push({
+      type,
+      original,
+      suggestion,
+      explanation: String(i.explanation ?? "").trim() || "Improvement suggested.",
+      severity,
+      start,
+      end,
+    });
+    if (valid.length >= 50) break;
+  }
+  return valid.sort((a, b) => a.start - b.start);
+}
+
+function validateVocab(vocab: any[], text: string): VocabSuggestion[] {
+  if (!Array.isArray(vocab)) return [];
+  const out: VocabSuggestion[] = [];
+  const seen = new Set<string>();
+  for (const v of vocab) {
+    if (!v || typeof v !== "object") continue;
+    const word = String(v.word ?? "").trim();
+    if (!word) continue;
+    const alts = Array.isArray(v.alternatives)
+      ? v.alternatives.filter((a): a is string => typeof a === "string" && a.trim().length > 0).slice(0, 5)
+      : [];
+    if (alts.length === 0) continue;
+    if (seen.has(word.toLowerCase())) continue;
+    seen.add(word.toLowerCase());
+    out.push({
+      word,
+      alternatives: alts,
+      reason: String(v.reason ?? "").trim() || "Stronger alternative.",
+    });
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+function validateTone(tone: any): ToneInfo {
+  if (!tone || typeof tone !== "object") {
+    return { tone: "—", confidence: 0, formality: "neutral", sentiment: "neutral" };
+  }
+  return {
+    tone: String(tone.tone ?? "—"),
+    confidence: typeof tone.confidence === "number" ? Math.max(0, Math.min(100, tone.confidence)) : 0,
+    formality: (["formal", "neutral", "informal"].includes(tone.formality) ? tone.formality : "neutral") as ToneInfo["formality"],
+    sentiment: (["positive", "neutral", "negative"].includes(tone.sentiment) ? tone.sentiment : "neutral") as ToneInfo["sentiment"],
+  };
+}
+
+async function callLLM(systemPrompt: string, userPrompt: string, temperature = 0.2): Promise<string> {
+  const zai = await ZAI.create();
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    thinking: { type: "disabled" },
+    temperature,
+  });
+  return completion.choices?.[0]?.message?.content ?? "";
+}
+
+// ---------- Main analyze endpoint ----------
+
+const SYSTEM_PROMPT = `You are an advanced grammar and writing assistant, similar to Grammarly but more thorough. Analyze the user's text and return ONLY a valid JSON object (no markdown fences, no extra prose) with this exact structure:
+
+{
+  "issues": [
+    {
+      "type": "grammar" | "spelling" | "punctuation" | "style" | "clarity" | "vocabulary" | "capitalization",
+      "original": "the EXACT substring from the source text (case-sensitive, including spaces)",
+      "suggestion": "the corrected version",
+      "explanation": "short explanation of why this change is recommended",
+      "severity": "critical" | "warning" | "suggestion",
+      "start": <0-indexed character offset where 'original' begins>,
+      "end": <character offset where 'original' ends, exclusive>
+    }
+  ],
+  "correctedText": "the fully corrected text with all critical and warning issues applied",
+  "tone": {
+    "tone": "e.g. Professional, Casual, Academic, Confident, Friendly, Urgent",
+    "confidence": <0-100>,
+    "formality": "formal" | "neutral" | "informal",
+    "sentiment": "positive" | "neutral" | "negative"
+  },
+  "vocabulary": [
+    { "word": "a word from the text", "alternatives": ["better", "stronger words"], "reason": "why these are better" }
+  ],
+  "scores": {
+    "grammar": <0-100>,
+    "clarity": <0-100>,
+    "readability": <0-100>,
+    "vocabulary": <0-100>,
+    "tone": <0-100>,
+    "conciseness": <0-100>,
+    "engagement": <0-100>
+  },
+  "overallScore": <0-100>
+}
+
+CRITICAL RULES:
+1. Return ONLY the JSON. No prose, no markdown fences.
+2. "original" MUST be an EXACT case-sensitive substring of the source text. If you can't match it exactly, don't include the issue.
+3. "start" and "end" MUST be exact character offsets. Count carefully — including spaces and punctuation.
+4. Be conservative — only flag genuine issues.
+5. For vocabulary, suggest 2-4 stronger alternatives per weak word.
+6. If the text is empty or too short, return valid JSON with empty arrays and zero scores.
+7. Keep explanations under 20 words.`;
+
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   try {
     const body = await req.json().catch(() => ({}));
     const text: string = (body?.text ?? "").toString();
-    const mode: string = (body?.mode ?? "full").toString();
+    const goal: string = (body?.goal ?? "general").toString();
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json<GrammarResponse>({
@@ -137,58 +284,78 @@ export async function POST(req: NextRequest) {
         vocabulary: [],
         stats: fallbackStats(""),
         overallScore: 0,
+        goal,
       });
     }
 
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Analyze the following text:\n\n${text}` },
-      ],
-      thinking: { type: "disabled" },
-      temperature: 0.2,
-    });
-
-    const raw = completion.choices?.[0]?.message?.content ?? "";
-    let parsed: Partial<GrammarResponse>;
-    try {
-      const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      parsed = {};
+    // Short-circuit for very short inputs (1-2 chars) — no point calling LLM
+    if (text.trim().length < 3) {
+      const stats = fallbackStats(text);
+      return NextResponse.json<GrammarResponse>({
+        issues: [],
+        correctedText: text,
+        tone: { tone: "—", confidence: 0, formality: "neutral", sentiment: "neutral" },
+        vocabulary: [],
+        stats,
+        overallScore: 50,
+        goal,
+      });
     }
 
-    const stats = parsed.stats && typeof parsed.stats.wordCount === "number"
-      ? parsed.stats
-      : fallbackStats(text);
+    const goalSuffix = goal && goal !== "general"
+      ? `\n\nThe user's writing goal is: ${goal}. Adapt suggestions accordingly.`
+      : "";
 
-    const response: GrammarResponse = {
-      issues: Array.isArray(parsed.issues) ? parsed.issues.slice(0, 50) : [],
-      correctedText: typeof parsed.correctedText === "string" ? parsed.correctedText : text,
-      tone: parsed.tone ?? { tone: "—", confidence: 0, formality: "neutral", sentiment: "neutral" },
-      vocabulary: Array.isArray(parsed.vocabulary) ? parsed.vocabulary.slice(0, 20) : [],
+    const raw = await callLLM(
+      SYSTEM_PROMPT,
+      `Analyze the following text:\n\n${text}${goalSuffix}`,
+      0.2
+    );
+
+    const parsed = extractJson(raw) || {};
+    const stats = fallbackStats(text); // Always compute locally for accuracy
+    const issues = validateIssues(parsed.issues, text);
+    const vocabulary = validateVocab(parsed.vocabulary, text);
+    const tone = validateTone(parsed.tone);
+    const correctedText = typeof parsed.correctedText === "string" && parsed.correctedText.trim()
+      ? parsed.correctedText
+      : text;
+    const overallScore = typeof parsed.overallScore === "number"
+      ? Math.max(0, Math.min(100, Math.round(parsed.overallScore)))
+      : Math.max(20, Math.min(100, 100 - issues.length * 8));
+    const scores = parsed.scores && typeof parsed.scores === "object"
+      ? {
+          grammar: typeof parsed.scores.grammar === "number" ? parsed.scores.grammar : Math.max(40, 100 - issues.filter(i => i.type === "grammar").length * 10),
+          clarity: typeof parsed.scores.clarity === "number" ? parsed.scores.clarity : 80,
+          readability: typeof parsed.scores.readability === "number" ? parsed.scores.readability : stats.readabilityScore,
+          vocabulary: typeof parsed.scores.vocabulary === "number" ? parsed.scores.vocabulary : Math.round(stats.lexicalDiversity * 100),
+          tone: typeof parsed.scores.tone === "number" ? parsed.scores.tone : 75,
+          conciseness: typeof parsed.scores.conciseness === "number" ? parsed.scores.conciseness : 80,
+          engagement: typeof parsed.scores.engagement === "number" ? parsed.scores.engagement : 75,
+        }
+      : undefined;
+
+    return NextResponse.json<GrammarResponse>({
+      issues,
+      correctedText,
+      tone,
+      vocabulary,
       stats,
-      overallScore: typeof parsed.overallScore === "number" ? parsed.overallScore : 0,
-    };
-
-    if (mode === "stats-only") {
-      return NextResponse.json({ stats, overallScore: response.overallScore });
-    }
-
-    return NextResponse.json(response);
+      overallScore,
+      scores,
+      goal,
+    });
   } catch (err: any) {
-    console.error("grammar route error:", err?.message || err);
-    const text = "";
-    return NextResponse.json(
+    console.error("grammar route error:", err?.message || err, "took", Date.now() - t0, "ms");
+    return NextResponse.json<GrammarResponse>(
       {
-        error: err?.message || "Grammar analysis failed",
         issues: [],
         correctedText: "",
         tone: { tone: "—", confidence: 0, formality: "neutral", sentiment: "neutral" },
         vocabulary: [],
-        stats: fallbackStats(text),
+        stats: fallbackStats(""),
         overallScore: 0,
+        error: err?.message || "Grammar analysis failed",
       },
       { status: 200 }
     );

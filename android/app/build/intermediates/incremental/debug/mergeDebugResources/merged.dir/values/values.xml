@@ -14,6 +14,7 @@
     <color name="abc_search_url_text_selected">@android:color/black</color>
     <color name="accent_material_dark">@color/material_deep_teal_200</color>
     <color name="accent_material_light">@color/material_deep_teal_500</color>
+    <color name="amber">#f59e0b</color>
     <color name="androidx_core_ripple_material_light">#1f000000</color>
     <color name="androidx_core_secondary_text_default_material_light">#8a000000</color>
     <color name="background_floating_material_dark">@color/material_grey_800</color>
@@ -67,12 +68,18 @@
     <color name="primary_text_default_material_light">#de000000</color>
     <color name="primary_text_disabled_material_dark">#4Dffffff</color>
     <color name="primary_text_disabled_material_light">#39000000</color>
+    <color name="red">#ef4444</color>
     <color name="ripple_material_dark">#33ffffff</color>
     <color name="ripple_material_light">#1f000000</color>
     <color name="secondary_text_default_material_dark">#b3ffffff</color>
     <color name="secondary_text_default_material_light">#8a000000</color>
     <color name="secondary_text_disabled_material_dark">#36ffffff</color>
     <color name="secondary_text_disabled_material_light">#24000000</color>
+    <color name="slate_100">#f1f5f9</color>
+    <color name="slate_200">#e2e8f0</color>
+    <color name="slate_500">#64748b</color>
+    <color name="slate_700">#334155</color>
+    <color name="slate_900">#0f172a</color>
     <color name="switch_thumb_disabled_material_dark">#ff616161</color>
     <color name="switch_thumb_disabled_material_light">#ffbdbdbd</color>
     <color name="switch_thumb_normal_material_dark">#ffbdbdbd</color>
@@ -303,6 +310,9 @@
     <string name="abc_shareactionprovider_share_with">Share with</string>
     <string name="abc_shareactionprovider_share_with_application">Share with <ns1:g example="Mail" id="application_name">%s</ns1:g></string>
     <string name="abc_toolbar_collapse_description">Collapse</string>
+    <string name="accessibility_off">Accessibility service is OFF — tap to enable</string>
+    <string name="accessibility_service_description">LinguaAI accessibility service. Reads the text you are editing in other apps (WhatsApp, Gmail, Messages, etc.) so it can provide grammar, spelling, vocabulary, tone, and rewrite suggestions through a floating overlay. No text is stored — analysis happens on demand and is sent only to the LinguaAI API.</string>
+    <string name="all_ready">LinguaAI is active. The floating button will appear when you type in any app.</string>
     <string name="androidx_startup" translatable="false">androidx.startup</string>
     <string name="app_name">LinguaAI</string>
     <string name="call_notification_answer_action">Answer</string>
@@ -312,6 +322,11 @@
     <string name="call_notification_incoming_text">Incoming call</string>
     <string name="call_notification_ongoing_text">Ongoing call</string>
     <string name="call_notification_screening_text">Screening an incoming call</string>
+    <string name="enable_accessibility">Enable accessibility service</string>
+    <string name="enable_overlay">Allow display over other apps</string>
+    <string name="floating_notification_channel">LinguaAI floating assistant</string>
+    <string name="floating_notification_text">LinguaAI is running — analyzing your writing across apps</string>
+    <string name="overlay_off">Overlay permission is OFF — tap to enable</string>
     <string name="search_menu_title">Search</string>
     <string name="status_bar_notification_info_overflow">999+</string>
     <string name="tagline">AI grammar &amp; writing assistant</string>

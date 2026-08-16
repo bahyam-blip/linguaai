@@ -1,13 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="amber">#f59e0b</color>
     <color name="bg">#fafafa</color>
     <color name="black">#000000</color>
     <color name="emerald">#10b981</color>
     <color name="emerald_dark">#059669</color>
     <color name="emerald_light">#d1fae5</color>
+    <color name="red">#ef4444</color>
+    <color name="slate_100">#f1f5f9</color>
+    <color name="slate_200">#e2e8f0</color>
+    <color name="slate_500">#64748b</color>
+    <color name="slate_700">#334155</color>
+    <color name="slate_900">#0f172a</color>
     <color name="teal">#0d9488</color>
     <color name="white">#ffffff</color>
+    <string name="accessibility_off">Accessibility service is OFF — tap to enable</string>
+    <string name="accessibility_service_description">LinguaAI accessibility service. Reads the text you are editing in other apps (WhatsApp, Gmail, Messages, etc.) so it can provide grammar, spelling, vocabulary, tone, and rewrite suggestions through a floating overlay. No text is stored — analysis happens on demand and is sent only to the LinguaAI API.</string>
+    <string name="all_ready">LinguaAI is active. The floating button will appear when you type in any app.</string>
     <string name="app_name">LinguaAI</string>
+    <string name="enable_accessibility">Enable accessibility service</string>
+    <string name="enable_overlay">Allow display over other apps</string>
+    <string name="floating_notification_channel">LinguaAI floating assistant</string>
+    <string name="floating_notification_text">LinguaAI is running — analyzing your writing across apps</string>
+    <string name="overlay_off">Overlay permission is OFF — tap to enable</string>
     <string name="tagline">AI grammar &amp; writing assistant</string>
     <style name="Theme.LinguaAI" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:colorPrimary">@color/emerald</item>

@@ -2,4 +2,12 @@
 <resources>
     <string name="app_name">LinguaAI</string>
     <string name="tagline">AI grammar &amp; writing assistant</string>
+    <string name="accessibility_service_description">LinguaAI accessibility service. Reads the text you are editing in other apps (WhatsApp, Gmail, Messages, etc.) so it can provide grammar, spelling, vocabulary, tone, and rewrite suggestions through a floating overlay. No text is stored — analysis happens on demand and is sent only to the LinguaAI API.</string>
+    <string name="floating_notification_channel">LinguaAI floating assistant</string>
+    <string name="floating_notification_text">LinguaAI is running — analyzing your writing across apps</string>
+    <string name="enable_accessibility">Enable accessibility service</string>
+    <string name="enable_overlay">Allow display over other apps</string>
+    <string name="accessibility_off">Accessibility service is OFF — tap to enable</string>
+    <string name="overlay_off">Overlay permission is OFF — tap to enable</string>
+    <string name="all_ready">LinguaAI is active. The floating button will appear when you type in any app.</string>
 </resources>
