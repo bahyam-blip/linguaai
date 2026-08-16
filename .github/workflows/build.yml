@@ -27,7 +27,7 @@ jobs:
 
       - name: Install web dependencies
         working-directory: .
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Lint
         run: bun run lint
