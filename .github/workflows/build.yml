@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ---------- Web app build ----------
+  # --------------- Web app build ---------------
   build-web:
     name: Build Next.js web app
     runs-on: ubuntu-latest
@@ -34,7 +34,7 @@ jobs:
 
       - name: Build web app
         env:
-          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
         run: bun run build
 
       - name: Upload web build artifact
@@ -46,7 +46,7 @@ jobs:
             .next/static
             public
 
-  # ---------- Android APK build ----------
+  # --------------- Android APK build ---------------
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
@@ -104,7 +104,7 @@ jobs:
           name: linguaai-apk
           path: android/app/build/outputs/apk/release/LinguaAI-release.apk
 
-  # ---------- Package the extension ----------
+  # --------------- Package the extension ---------------
   package-extension:
     name: Package browser extension
     runs-on: ubuntu-latest
@@ -123,7 +123,7 @@ jobs:
           name: linguaai-extension
           path: LinguaAI-Extension-v1.0.0.zip
 
-  # ---------- Release on tag push ----------
+  # --------------- Release on tag push ---------------
   release:
     name: Release
     needs: [build-web, build-android, package-extension]
