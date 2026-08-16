@@ -10,6 +10,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+        Force the APK to be compatible with all screen sizes and ABIs.
+        This prevents Play Store / package installer from rejecting the APK
+        on devices with different densities or architectures.
+    -->
+    <supports-screens
+        android:smallScreens="true"
+        android:normalScreens="true"
+        android:largeScreens="true"
+        android:xlargeScreens="true"
+        android:resizeable="true"
+        android:anyDensity="true" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -18,7 +31,10 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.LinguaAI">
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
+        android:theme="@style/Theme.LinguaAI"
+        tools:targetApi="34">
 
         <activity
             android:name=".MainActivity"
@@ -32,10 +48,16 @@
             </intent-filter>
         </activity>
 
+        <!--
+            Foreground service for the floating overlay.
+            Uses specialUse type (Android 14+ requirement).
+            On older Android versions, this attribute is safely ignored.
+        -->
         <service
             android:name=".LinguaAIFloatingService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse"
+            tools:targetApi="34">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="AI writing assistant overlay that analyzes text the user is editing in other apps and provides grammar, tone, and rewrite suggestions via a floating window." />

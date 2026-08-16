@@ -64,3 +64,4 @@ download/**/extension/
 
 # Keep the .zscripts folder itself
 !.zscripts/
+linguaai-release.keystore

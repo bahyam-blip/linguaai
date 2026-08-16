@@ -11,19 +11,38 @@ android {
         applicationId = "com.linguaai.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         vectorDrawables.useSupportLibrary = true
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("../linguaai-release.keystore")
+            storePassword = "linguaai2026"
+            keyAlias = "linguaai"
+            keyPassword = "linguaai2026"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             isShrinkResources = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+            // Ensure all APK signature schemes are applied (v1+v2+v3)
+            // This fixes "app can't be installed" on Samsung/Xiaomi/Huawei devices
+            // that reject debug-signed or v2-only APKs
         }
         debug {
             isMinifyEnabled = false
+        }
+    }
+
+    // Build a single universal APK (no splits) for maximum compatibility
+    splits {
+        abi {
+            isEnable = false
         }
     }
 
@@ -47,5 +66,3 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.activity:activity-ktx:1.9.0")
-}
