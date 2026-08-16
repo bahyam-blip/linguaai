@@ -31,8 +31,14 @@ class LinguaAIApi(private val context: Context) {
     )
     data class RewriteResult(val result: String, val alternatives: List<String> = emptyList())
 
+    companion object {
+        private const val TAG = "LinguaAIApi"
+        const val DEFAULT_ENDPOINT = "https://preview-linguaai.space-z.ai/api/grammar"
+    }
+
     private fun baseUrl(): String {
-        val ep = AppSettings.getEndpoint(context)
+        val prefs = context.getSharedPreferences("linguaai_settings", android.content.Context.MODE_PRIVATE)
+        val ep = prefs.getString("endpoint", DEFAULT_ENDPOINT) ?: DEFAULT_ENDPOINT
         // endpoint is /api/grammar — derive base url
         return if (ep.endsWith("/api/grammar")) ep.removeSuffix("/api/grammar")
         else if (ep.endsWith("/api/")) ep.removeSuffix("/api/")
@@ -132,8 +138,4 @@ class LinguaAIApi(private val context: Context) {
     }
 
     private fun mainHandler() = android.os.Handler(android.os.Looper.getMainLooper())
-
-    companion object {
-        private const val TAG = "LinguaAIApi"
-    }
 }
