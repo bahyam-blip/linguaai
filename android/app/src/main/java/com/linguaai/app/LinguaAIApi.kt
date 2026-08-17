@@ -25,12 +25,12 @@ class LinguaAIApi(private val context: Context) {
 
     companion object {
         private val TAG = "LinguaAIApi"
-        private const val DEFAULT_ENDPOINT = "https://placeholder.supabase.co/functions/v1/grammar-check"
     }
 
     private fun baseUrl(): String {
         val prefs = context.getSharedPreferences("linguaai_settings", Context.MODE_PRIVATE)
-        val ep = prefs.getString("endpoint", DEFAULT_ENDPOINT) ?: DEFAULT_ENDPOINT
+        val defaultUrl = BuildConfig.SUPABASE_URL
+        val ep = prefs.getString("endpoint", defaultUrl) ?: defaultUrl
         return if (ep.endsWith("/api/grammar")) ep.removeSuffix("/api/grammar")
         else if (ep.endsWith("/api/")) ep.removeSuffix("/api/")
         else if (ep.endsWith("/api")) ep.removeSuffix("/api")
@@ -39,7 +39,7 @@ class LinguaAIApi(private val context: Context) {
 
     private fun getApiKey(): String {
         val prefs = context.getSharedPreferences("linguaai_settings", Context.MODE_PRIVATE)
-        return prefs.getString("supabase_anon_key", "") ?: ""
+        return prefs.getString("supabase_anon_key", BuildConfig.SUPABASE_ANON_KEY) ?: BuildConfig.SUPABASE_ANON_KEY
     }
 
     fun analyze(text: String, goal: String, cb: Callback<Analysis>) {
