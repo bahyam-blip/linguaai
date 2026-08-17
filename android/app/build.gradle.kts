@@ -15,8 +15,8 @@ android {
         applicationId = "com.linguaai.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "3.0.0"
+        versionCode = 4
+        versionName = "3.1.0"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", "\"${project.findProperty("SUPABASE_URL") ?: System.getenv("SUPABASE_URL") ?: ""}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.findProperty("SUPABASE_ANON_KEY") ?: System.getenv("SUPABASE_ANON_KEY") ?: ""}\"")
@@ -59,7 +59,7 @@ android {
 
     packaging {
         resources.excludes += setOf(
-            "META-INF/ALL2.0",
+            "META-INF/AL2.0",
             "META-INF/LGPL2.1",
             "META-INF/*.kotlin_module"
         )

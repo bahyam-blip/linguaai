@@ -2,8 +2,9 @@
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
     android:accessibilityEventTypes="typeViewFocused|typeViewTextChanged|typeViewTextSelectionChanged"
-    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
+    android:accessibilityFlags="flagDefault"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"
+    android:isAccessibilityTool="true"
     android:settingsActivity="com.linguaai.app.MainActivity" />
