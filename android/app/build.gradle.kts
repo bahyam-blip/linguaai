@@ -15,13 +15,10 @@ android {
         applicationId = "com.linguaai.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
-        versionName = "4.1.0"
+        versionCode = 8
+        versionName = "4.2.0"
         vectorDrawables.useSupportLibrary = true
 
-        // Hardcode the Supabase URL as fallback so the app works even when
-        // the env var is not injected at build time. This URL is public (not a secret).
-        // The Edge Function is deployed with --no-verify-jwt, so no anon key needed.
         buildConfigField("String", "SUPABASE_URL", "\"${project.findProperty("SUPABASE_URL") ?: System.getenv("SUPABASE_URL") ?: "https://whoyrfzxayzwolvzlodw.supabase.co"}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.findProperty("SUPABASE_ANON_KEY") ?: System.getenv("SUPABASE_ANON_KEY") ?: ""}\"")
     }
