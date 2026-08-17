@@ -19,9 +19,13 @@ import android.widget.TextView
 /**
  * Manages the floating overlay bubble and suggestion panel.
  *
- * Uses TYPE_ACCESSIBILITY_OVERLAY so no SYSTEM_ALERT_WINDOW permission is needed.
- * The bubble floats over any app, shows a suggestion count badge, and expands
- * into a full suggestion panel when tapped.
+ * Uses TYPE_APPLICATION_OVERAY (SYSTEM_ALERT_WINDOW) instead of
+ * TYPE_ACCESSIBILITY_OVERLAY. This means the bubble floats over
+ * other apps but cannot auto-read text from other apps' fields.
+ * The user taps the bubble to open LinguaAI, types/pastes text,
+ * and gets grammar suggestions.
+ *
+ * No BIND_ACCESSIBILITY_SERVICE needed — keeps Play Protect happy.
  */
 class FloatingBubbleManager(
     private val context: Context,
@@ -71,7 +75,7 @@ class FloatingBubbleManager(
     fun showAnalyzing() {
         handler.post {
             ensureBubble()
-            bubbleIcon?.text = "✓"
+            bubbleIcon?.text = "⟳"
             bubbleIcon?.setTextColor(colWhite)
             (bubbleView?.background as? GradientDrawable)?.setColor(colEmeraldDark)
             badgeText?.visibility = View.GONE
@@ -79,7 +83,7 @@ class FloatingBubbleManager(
             handler.postDelayed({
                 if (bubbleView?.visibility == View.VISIBLE && badgeText?.visibility == View.GONE) {
                     (bubbleView?.background as? GradientDrawable)?.setColor(colAmber)
-                    bubbleIcon?.text = "•••"
+                    bubbleIcon?.text = "⏳⏳⏳"
                     bubbleIcon?.textSize = 9f
                 }
             }, 600)
@@ -128,7 +132,7 @@ class FloatingBubbleManager(
             collapsePanel()
             val panel = buildPanelView(issues, score, tone)
             val params = WindowManager.LayoutParams().apply {
-                type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+                type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 format = PixelFormat.TRANSLUCENT
                 flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                 width = WindowManager.LayoutParams.WRAP_CONTENT
@@ -168,7 +172,7 @@ class FloatingBubbleManager(
 
         val view = FrameLayout(context)
         val params = WindowManager.LayoutParams().apply {
-            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -217,6 +221,8 @@ class FloatingBubbleManager(
             FrameLayout.LayoutParams.WRAP_CONTENT
         )
         badgeLp.gravity = Gravity.TOP or Gravity.END
+        badgeLp.rightMargin = 0
+        badgeLp.topMargin = 0
         view.addView(badge, badgeLp)
         badgeText = badge
 
@@ -286,10 +292,7 @@ class FloatingBubbleManager(
             }
             elevation = 32f
         }
-
-        val rootLp = FrameLayout.LayoutParams(dp(PANEL_WIDTH), FrameLayout.LayoutParams.WRAP_CONTENT)
-        rootLp.gravity = Gravity.CENTER
-        root.layoutParams = rootLp
+        root.layoutParams = LinearLayout.LayoutParams(dp(PANEL_WIDTH), LinearLayout.LayoutParams.WRAP_CONTENT)
 
         // Header
         val header = LinearLayout(context).apply {
@@ -316,11 +319,16 @@ class FloatingBubbleManager(
             setTextColor(colEmerald)
             textSize = 16f
             gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
         })
         header.addView(logoBox)
 
-        val titleBox = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val titleBox = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+        }
         titleBox.addView(TextView(context).apply {
             text = "LinguaAI"
             setTextColor(colWhite)
@@ -341,9 +349,7 @@ class FloatingBubbleManager(
             setPadding(dp(12), dp(4), dp(4), dp(12))
             setOnClickListener { onDismiss() }
         }
-        val closeLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        closeLp.gravity = Gravity.CENTER_VERTICAL
-        header.addView(closeBtn, closeLp)
+        header.addView(closeBtn)
         root.addView(header)
 
         // Issues list
@@ -366,7 +372,10 @@ class FloatingBubbleManager(
                 setPadding(dp(14), dp(10), dp(14), dp(10))
                 setOnClickListener { onAcceptAll() }
             }
-            val acceptAllLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            val acceptAllLp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
             acceptAllLp.bottomMargin = dp(12)
             listContainer.addView(acceptAllBtn, acceptAllLp)
         }
@@ -384,7 +393,10 @@ class FloatingBubbleManager(
                     setColor(colEmeraldBg)
                     setStroke(dp(1), colEmeraldLight)
                 }
-                val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
                 lp.topMargin = dp(8)
                 layoutParams = lp
             }
@@ -429,7 +441,10 @@ class FloatingBubbleManager(
             }
             elevation = 2f
         }
-        val cardLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        val cardLp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
         cardLp.bottomMargin = dp(8)
         card.layoutParams = cardLp
 
@@ -492,7 +507,10 @@ class FloatingBubbleManager(
             setPadding(dp(14), dp(8), dp(14), dp(8))
             setOnClickListener { onAcceptIssue(issue) }
         }
-        val replaceLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        val replaceLp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
         replaceLp.rightMargin = dp(8)
         btnRow.addView(replaceBtn, replaceLp)
 

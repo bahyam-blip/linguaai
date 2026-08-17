@@ -4,13 +4,18 @@
     package="com.linguaai.app">
 
     <!--
-        MINIMUM PERMISSIONS — only INTERNET and ACCESS_NETWORK_STATE.
-        No FOREGROUND_SERVICE, no POST_NOTIFICATIONS, no SYSTEM_ALERT_WINDOW.
-        The AccessibilityService is system-managed and does not need to be
-        declared as a foreground service. This keeps Play Protect happy.
+        MINIMAL PERMISSIONS — no BIND_ACCESSIBILITY_SERVICE.
+        This is what was triggering Play Protect to hard-block the APK.
+        Play Protect flags sideloaded apps with accessibility service +
+        unknown signer. Removing it lets the app install cleanly.
+
+        SYSTEM_ALERT_WINDOW is used for the floating bubble overlay.
+        INTERNET + ACCESS_NETWORK_STATE for API calls.
+        No foreground service, no accessibility, no SMS — clean.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <supports-screens
         android:smallScreens="true"
@@ -26,13 +31,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config"
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.LinguaAI"
         tools:targetApi="34">
 
-        <!-- Main activity — onboarding + standalone editor -->
+        <!-- Main activity — standalone editor + floating bubble launcher -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -45,23 +49,5 @@
             </intent-filter>
         </activity>
 
-        <!--
-            Accessibility Service — the core of the floating assistant.
-            Watches text fields in ANY app and shows a floating bubble
-            with grammar/vocabulary/style suggestions.
-            Uses TYPE_ACCESSIBILITY_OVERLAY so no SYSTEM_ALERT_WINDOW permission is needed.
-            No foregroundServiceType — AccessibilityService is system-managed.
-        -->
-        <service
-            android:name=".AssistantAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
     </application>
 </manifest>
