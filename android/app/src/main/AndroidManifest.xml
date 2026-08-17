@@ -29,7 +29,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:userClearTextTraffic="false"
+        android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config"
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.LinguaAI"
@@ -79,6 +79,6 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Writing Assistant — monitors text input across apps to provide grammar, spelling, vocabulary, and style suggestions." />
-        </service>
+         </service>
     </application>
 </manifest>
