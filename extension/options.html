@@ -12,9 +12,9 @@
       <div class="brand-row">
         <div class="brand-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            <path d="m9 7.6 2 2 4-4"/>
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            <path d="m9 7.6 2 2 4-4"></path>
           </svg>
         </div>
         <div>
@@ -23,6 +23,8 @@
         </div>
       </div>
     </div>
+
+    <!-- ── Supabase Configuration ── -->
     <div class="section">
       <h2 class="section-title">Supabase Configuration</h2>
       <p class="section-desc">Connect LinguaAI to your Supabase project. The Sarvam AI API key is kept server-side inside your Edge Function — you only need your Supabase Project URL and anon key, both of which are safe to use in browser extensions. Find them in <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank" rel="noopener">Supabase Dashboard → Settings → API</a>.</p>
@@ -39,51 +41,143 @@
       </div>
       <div id="testResult" class="test-result"></div>
     </div>
+
+    <!-- ── Global Controls ── -->
     <div class="section">
-      <h2 class="section-title">Assistant</h2>
+      <h2 class="section-title">Global Controls</h2>
       <div class="toggle-row">
         <div class="toggle-info">
           <span class="toggle-label">Enable LinguaAI</span>
           <span class="toggle-desc">Master switch for the writing assistant</span>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="enabled" />
-          <span class="slider"></span>
-        </label>
+        <label class="switch"><input type="checkbox" id="enabled" /><span class="slider"></span></label>
       </div>
       <div class="toggle-row">
         <div class="toggle-info">
           <span class="toggle-label">Auto-check while typing</span>
           <span class="toggle-desc">Automatically analyze text as you type</span>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="autoCheck" />
-          <span class="slider"></span>
-        </label>
+        <label class="switch"><input type="checkbox" id="autoCheck" /><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Floating assistant button</span>
+          <span class="toggle-desc">Show the floating AI button on text fields</span>
+        </div>
+        <label class="switch"><input type="checkbox" id="enableFloatingAssistant" /><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Inline suggestions</span>
+          <span class="toggle-desc">Show colored underlines on text with issues</span>
+        </div>
+        <label class="switch"><input type="checkbox" id="enableInlineSuggestions" /><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Auto-correction</span>
+          <span class="toggle-desc">Automatically apply high-confidence fixes</span>
+        </div>
+        <label class="switch"><input type="checkbox" id="enableAutoCorrect" /><span class="slider"></span></label>
       </div>
     </div>
+
+    <!-- ── Issue Types ── -->
     <div class="section">
       <h2 class="section-title">Issue Types</h2>
       <p class="section-desc">Choose which types of issues LinguaAI should check for.</p>
       <div id="categoryToggles"></div>
     </div>
+
+    <!-- ── AI Features ── -->
     <div class="section">
-      <h2 class="section-title">Keyboard Shortcuts</h2>
-      <div class="shortcut-row">
-        <span>Check selected text</span>
-        <kbd>Ctrl+Shift+L</kbd>
+      <h2 class="section-title">AI Features</h2>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">AI rewrite & compose</span>
+          <span class="toggle-desc">Rewrite, tone change, and AI text generation</span>
+        </div>
+        <label class="switch"><input type="checkbox" id="enableAI" /><span class="slider"></span></label>
       </div>
-      <div class="shortcut-row">
-        <span>Open popup editor</span>
-        <kbd>Ctrl+Shift+Y</kbd>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Synonyms & definitions</span>
+          <span class="toggle-desc">Double-click a word to see synonyms and definitions</span>
+        </div>
+        <label class="switch"><input type="checkbox" id="enableSynonyms" /><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Learning mode</span>
+          <span class="toggle-desc">Explain grammar mistakes with detailed examples</span>
+        </div>
+        <label class="switch"><input type="checkbox" id="enableLearningMode" /><span class="slider"></span></label>
       </div>
     </div>
+
+    <!-- ── Language & Style ── -->
+    <div class="section">
+      <h2 class="section-title">Language & Writing Style</h2>
+      <div class="select-row">
+        <label for="language">Language variant</label>
+        <select id="language">
+          <option value="en-IN">English (India)</option>
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="en-AU">English (Australia)</option>
+          <option value="en-CA">English (Canada)</option>
+        </select>
+      </div>
+      <div class="select-row">
+        <label for="writingStyle">Writing style</label>
+        <select id="writingStyle">
+          <option value="general">General</option>
+          <option value="professional">Professional — formal, concise, confident</option>
+          <option value="friendly">Friendly — warm, conversational</option>
+          <option value="academic">Academic — structured, formal, precise</option>
+          <option value="business">Business — direct, persuasive</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ── Per-Website Controls ── -->
+    <div class="section">
+      <h2 class="section-title">Website Controls</h2>
+      <p class="section-desc">Enable or disable LinguaAI for specific websites.</p>
+      <div class="input-group">
+        <input type="text" id="siteInput" placeholder="example.com" />
+        <button id="addSite" class="btn-secondary">Add</button>
+      </div>
+      <div id="siteList"></div>
+    </div>
+
+    <!-- ── Custom Dictionary ── -->
+    <div class="section">
+      <h2 class="section-title">Custom Dictionary</h2>
+      <p class="section-desc">Words you add here will not be flagged as spelling errors.</p>
+      <div class="input-group">
+        <input type="text" id="wordInput" placeholder="Add a word..." />
+        <button id="addWord" class="btn-secondary">Add</button>
+      </div>
+      <div id="dictionaryList"></div>
+    </div>
+
+    <!-- ── Keyboard Shortcuts ── -->
+    <div class="section">
+      <h2 class="section-title">Keyboard Shortcuts</h2>
+      <div class="shortcut-row"><span>Check selected text</span><kbd>Ctrl+Shift+L</kbd></div>
+      <div class="shortcut-row"><span>Open popup editor</span><kbd>Ctrl+Shift+Y</kbd></div>
+      <div class="shortcut-row"><span>Undo last change</span><kbd>Ctrl+Shift+Z</kbd></div>
+    </div>
+
+    <!-- ── Privacy ── -->
     <div class="section privacy-note">
       <h2 class="section-title">Privacy</h2>
       <p>Your Supabase URL and anon key are stored locally in your browser and are only sent to your own Supabase project's Edge Function for analysis. The Sarvam AI API key stays server-side inside the Edge Function and never touches your browser. Your text is never stored, logged, or shared with any third party.</p>
     </div>
+
     <div class="footer-note">
-      LinguaAI v1.1.0 · <a href="https://github.com/bahyam-blip/linguaai" target="_blank" rel="noopener">GitHub</a>
+      LinguaAI v2.0.0 © <a href="https://github.com/bahyam-blip/linguaai" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
   <script src="options.js"></script>
