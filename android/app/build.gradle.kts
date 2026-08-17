@@ -36,9 +36,6 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             signingConfig = signingConfigs.getByName("release")
-            // Ensure all APK signature schemes are applied (v1+v2+v3)
-            // This fixes "app can't be installed" on Samsung/Xiaomi/Huawei devices
-            // that reject debug-signed or v2-only APKs
         }
         debug {
             isMinifyEnabled = false
@@ -48,7 +45,7 @@ android {
     // Build a single universal APK (no splits) for maximum compatibility
     splits {
         abi {
-            isEnabled = false
+            isEnable = false
         }
     }
 
