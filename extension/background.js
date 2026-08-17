@@ -8,6 +8,14 @@ async function getSupabaseConfig() {
     "supabaseUrl",
     "supabaseAnonKey",
   ]);
+  // Normalize URL: ensure it has https:// prefix to prevent "no protocol:" errors
+  if (supabaseUrl && !supabaseUrl.startsWith("http://") && !supabaseUrl.startsWith("https://")) {
+    supabaseUrl = "https://" + supabaseUrl;
+  }
+  // Strip trailing slash so endpoint construction doesn't double up
+  if (supabaseUrl) {
+    supabaseUrl = supabaseUrl.replace(/\/+$/, "");
+  }
   return { supabaseUrl, supabaseAnonKey };
 }
 
@@ -45,7 +53,7 @@ async function analyzeText(text, mode = 'full', context = '') {
     return { ok: false, error: 'Supabase is not configured. Open LinguaAI extension options to add your Supabase Project URL and anon key.' };
   }
 
-  let categories = null;
+  var categories = null;
   if (mode === 'full') {
     const settings = await getSettings();
     const enabledTypes = [];
@@ -62,7 +70,7 @@ async function analyzeText(text, mode = 'full', context = '') {
     }
   }
 
-  const endpoint = supabaseUrl.replace(/\/+$/, '') + EDGE_FUNCTION_PATH;
+  const endpoint = supabaseUrl + EDGE_FUNCTION_PATH;
   const body = { text, mode };
   if (categories) body.categories = categories;
   if (context) body.context = context;
@@ -86,7 +94,7 @@ async function analyzeText(text, mode = 'full', context = '') {
     let detail = '';
     try {
       const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.detail || errBody?.error || JSON.stringify(errBody);
+      detail = errBody?.error?.message || errBody?.message || errBody?.error || JSON.stringify(errBody);
     } catch {
       try { detail = await res.text(); } catch { detail = ''; }
     }
@@ -118,10 +126,10 @@ async function analyzeText(text, mode = 'full', context = '') {
 async function rewriteText(text, { action, instruction, targetLang, context } = {}) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
   if (!supabaseUrl || !supabaseAnonKey) {
-    return { ok: false, error: 'Supabase is not configured. Open LinguaAI extension options to add your Supabase Project URL and anon key.' };
+    return { ok: false, error: 'Supabase is not configured. Open LinguaAI extension options.' };
   }
 
-  const endpoint = supabaseUrl.replace(/\/+$/, '') + EDGE_FUNCTION_PATH;
+  const endpoint = supabaseUrl + EDGE_FUNCTION_PATH;
   const body = { text, action, instruction, targetLang, mode: 'rewrite' };
   if (context) body.context = context;
 
@@ -144,21 +152,21 @@ async function rewriteText(text, { action, instruction, targetLang, context } = 
     let detail = '';
     try {
       const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.detail || errBody?.error || JSON.stringify(errBody);
+      detail = errBody?.error?.message || errBody?.message || errBody?.error || JSON.stringify(errBody);
     } catch {
       try { detail = await res.text(); } catch { detail = ''; }
     }
     if (res.status === 401 || res.status === 403) {
-      return { ok: false, error: 'Supabase authentication failed. Please check your Supabase Project URL and anon key in the extension options.' };
+      return { ok: false, error: 'Supabase authentication failed. Check your URL and anon key.' };
     }
-    return { ok: false, error: 'Supabase Edge Function error ' + res.status + ': ' + detail.slice(0, 200) };
+    return { ok: false, error: 'Edge Function error ' + res.status + ': ' + detail.slice(0, 200) };
   }
 
   let data;
   try {
     data = await res.json();
   } catch {
-    return { ok: false, error: 'Failed to parse Supabase Edge Function response.' };
+    return { ok: false, error: 'Failed to parse response.' };
   }
 
   return { ok: true, data };
@@ -171,7 +179,7 @@ async function chatWithAI(message, context, selection) {
     return { ok: false, error: 'Supabase is not configured.' };
   }
 
-  const endpoint = supabaseUrl.replace(/\/+$/, '') + EDGE_FUNCTION_PATH;
+  const endpoint = supabaseUrl + EDGE_FUNCTION_PATH;
   const prompt = selection
     ? `Selected text: "${selection}"\n\nUser question: ${message}`
     : context
@@ -199,7 +207,7 @@ async function chatWithAI(message, context, selection) {
     let detail = '';
     try {
       const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.detail || errBody?.error || JSON.stringify(errBody);
+      detail = errBody?.error?.message || errBody?.message || errBody?.error || JSON.stringify(errBody);
     } catch {
       try { detail = await res.text(); } catch { detail = ''; }
     }
@@ -223,7 +231,7 @@ async function getSynonyms(word) {
     return { ok: false, error: 'Supabase is not configured.' };
   }
 
-  const endpoint = supabaseUrl.replace(/\/+$/, '') + EDGE_FUNCTION_PATH;
+  const endpoint = supabaseUrl + EDGE_FUNCTION_PATH;
   const body = {
     text: word,
     action: 'synonyms',
@@ -250,7 +258,7 @@ async function getSynonyms(word) {
     let detail = '';
     try {
       const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.detail || errBody?.error || JSON.stringify(errBody);
+      detail = errBody?.error?.message || errBody?.message || errBody?.error || JSON.stringify(errBody);
     } catch {
       try { detail = await res.text(); } catch { detail = ''; }
     }
@@ -383,19 +391,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'LINGUAAI_REWRITE') {
     rewriteText(msg.text, { action: msg.action, instruction: msg.instruction, targetLang: msg.targetLang, context: msg.context })
       .then(result => sendResponse(result))
-      .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
+      .catch(err => sendResponse({ ok: false, error: String(err) }));
     return true;
   }
   if (msg.type === 'LINGUAAI_CHAT') {
     chatWithAI(msg.message, msg.context || '', msg.selection || '')
       .then(result => sendResponse(result))
-      .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
+      .catch(err => sendResponse({ ok: false, error: String(err) }));
     return true;
   }
   if (msg.type === 'LINGUAAI_SYNONYMS') {
     getSynonyms(msg.word)
       .then(result => sendResponse(result))
-      .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
+      .catch(err => sendResponse({ ok: false, error: String(err) }));
     return true;
   }
   if (msg.type === 'LINGUAAI_TEST_KEY') {

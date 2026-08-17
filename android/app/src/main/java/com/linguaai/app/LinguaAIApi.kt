@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.URLEncoder
 import java.util.concurrent.Executors
 
 class LinguaAIApi(private val context: Context) {
@@ -24,17 +23,31 @@ class LinguaAIApi(private val context: Context) {
     data class RewriteResult(val result: String, val alternatives: List<String> = emptyList())
 
     companion object {
-        private val TAG = "LinguaAIApi"
+        private val TAG = "LinguaAI-Api"
+        private const val EDGE_FUNCTION_PATH = "/functions/v1/grammar-check"
     }
 
-    private fun baseUrl(): String {
+    /**
+     * Returns the FULL edge function URL.
+     * BuildConfig.SUPABASE_URL is the base URL like "https://xxx.supabase.co".
+     * We append "/functions/v1/grammar-check" to get the complete endpoint.
+     */
+    private fun endpointUrl(): String {
         val prefs = context.getSharedPreferences("linguaai_settings", Context.MODE_PRIVATE)
         val defaultUrl = BuildConfig.SUPABASE_URL
         val ep = prefs.getString("endpoint", defaultUrl) ?: defaultUrl
-        return if (ep.endsWith("/api/grammar")) ep.removeSuffix("/api/grammar")
-        else if (ep.endsWith("/api/")) ep.removeSuffix("/api/")
-        else if (ep.endsWith("/api")) ep.removeSuffix("/api")
-        else ep
+
+        // Strip any existing path to get the clean base URL
+        val base = when {
+            ep.endsWith("/functions/v1/grammar-check") -> ep.removeSuffix("/functions/v1/grammar-check")
+            ep.endsWith("/api/grammar") -> ep.removeSuffix("/api/grammar")
+            ep.endsWith("/api/") -> ep.removeSuffix("/api/")
+            ep.endsWith("/api") -> ep.removeSuffix("/api")
+            else -> ep
+        }
+
+        // Return the full edge function URL
+        return base.trimEnd('/') + EDGE_FUNCTION_PATH
     }
 
     private fun getApiKey(): String {
@@ -50,10 +63,11 @@ class LinguaAIApi(private val context: Context) {
                     put("goal", goal)
                     put("mode", "full")
                 }
-                val raw = post("${baseUrl()}", payload)
+                val raw = post(endpointUrl(), payload)
                 val j = JSONObject(raw)
                 val issuesArr = j.optJSONArray("issues") ?: JSONArray()
-                val issues = (0 until issuesArr.length()).map { i ->
+                val issues = (0 until issuesArr.length()).map {
+                    i ->
                     val ij = issuesArr.getJSONObject(i)
                     Issue(
                         type = ij.optString("type", "grammar"),
@@ -72,7 +86,7 @@ class LinguaAIApi(private val context: Context) {
                     formality = tone?.optString("formality", "neutral") ?: "neutral",
                     sentiment = tone?.optString("sentiment", "neutral") ?: "neutral",
                     confidence = tone?.optInt("confidence", 0) ?: 0,
-                    overallScore = j.optInt("overallScore", 0),
+                    overallScore = j.optInt("overallScore", 100),
                     wordCount = stats?.optInt("wordCount", 0) ?: 0
                 )
                 mainHandler().post { cb.onSuccess(analysis) }
@@ -93,7 +107,7 @@ class LinguaAIApi(private val context: Context) {
                     instruction?.let { put("instruction", it) }
                     targetLang?.let { put("targetLang", it) }
                 }
-                val raw = post("${baseUrl()}", payload)
+                val raw = post(endpointUrl(), payload)
                 val j = JSONObject(raw)
                 if (j.has("error")) {
                     mainHandler().post { cb.onError(j.optString("error", "Rewrite failed")) }
