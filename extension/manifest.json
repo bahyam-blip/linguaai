@@ -27,7 +27,7 @@
   "permissions": [
     "activeTab",
     "storage",
-    "contextMenus"
+    "contextMenu"
   ],
   "host_permissions": [
     "https://*.supabase.co/*"
@@ -39,7 +39,9 @@
         "https://*/*"
       ],
       "js": [
-        "content.js"
+        "content1.js",
+        "content2.js",
+        "content3.js"
       ],
       "run_at": "document_idle"
     }
@@ -55,7 +57,7 @@
       ],
       "matches": [
         "http://*/*",
-        "https://*/*"
+        "https:///*/*"
       ]
     }
   ],
