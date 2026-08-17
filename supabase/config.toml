@@ -1,0 +1,2 @@
+[functions.grammar-check]
+verify_jwt = false

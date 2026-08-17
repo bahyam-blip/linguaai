@@ -8,7 +8,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ---------- Web app build ----------
+  # --------------- Deploy Supabase Edge Function ---------------
+  deploy-supabase:
+    name: Deploy Supabase Function
+    runs-on: ubuntu-latest
+    # Only deploy on push to main (never on PRs, to avoid deploying untested functions)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+
+      - name: Deploy grammar-check Edge Function
+        run: supabase functions deploy grammar-check --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
+
+      - name: Set Sarvam API key as Supabase secret
+        run: supabase secrets set SARVAM_API_KEY=${{ secrets.SARVAM_API_KEY }} --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+
+  # --------------- Web app build ---------------
   build-web:
     name: Build Next.js web app
     runs-on: ubuntu-latest
@@ -27,14 +47,16 @@ jobs:
 
       - name: Install web dependencies
         working-directory: .
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Lint
         run: bun run lint
 
       - name: Build web app
         env:
-          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: bun run build
 
       - name: Upload web build artifact
@@ -46,7 +68,7 @@ jobs:
             .next/static
             public
 
-  # ---------- Android APK build ----------
+  # --------------- Android APK build ---------------
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
@@ -71,6 +93,9 @@ jobs:
 
       - name: Build release APK
         working-directory: android
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: ./gradlew assembleRelease --no-daemon --console=plain
 
       - name: Zip-align APK
@@ -104,7 +129,7 @@ jobs:
           name: linguaai-apk
           path: android/app/build/outputs/apk/release/LinguaAI-release.apk
 
-  # ---------- Package the extension ----------
+  # --------------- Package the extension ---------------
   package-extension:
     name: Package browser extension
     runs-on: ubuntu-latest
@@ -112,6 +137,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Zip extension
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           cd extension
           zip -r ../LinguaAI-Extension-v1.0.0.zip .
@@ -123,7 +151,7 @@ jobs:
           name: linguaai-extension
           path: LinguaAI-Extension-v1.0.0.zip
 
-  # ---------- Release on tag push ----------
+  # --------------- Release on tag push ---------------
   release:
     name: Release
     needs: [build-web, build-android, package-extension]

@@ -14,6 +14,7 @@ import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.ScrollingMovementMethod
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -24,18 +25,14 @@ import org.json.JSONObject
 /**
  * LinguaAI — Standalone AI Writing Assistant
  *
- * A clean, native Android editor that provides:
- *   - Real-time grammar, spelling, punctuation, style, clarity analysis
- *   - Vocabulary suggestions
- *   - Tone detection
- *   - Document scores (grammar, clarity, readability, vocabulary, tone, conciseness, engagement)
- *   - AI rewrite actions (improve, shorten, expand, simplify, professional, casual, etc.)
- *   - Translation to 12 languages
- *   - Ask AI natural-language commands
- *   - Share-sheet integration (receive text from any app)
- *   - Clipboard monitoring (auto-analyze copied text)
+ * A clean, modern, Grammarly-inspired native Android editor.
  *
- * Only requires INTERNET permission — no Play Protect warnings.
+ * Design principles:
+ *  - White background, subtle gray dividers, emerald accent
+ *  - Card-based issue display with colored severity borders
+ *  - 16dp rounded corners on all cards
+ *  - Clear typography hierarchy (sp units)
+ *  - Smooth state transitions (empty → loading → results → error)
  */
 class MainActivity : ComponentActivity() {
 
@@ -43,7 +40,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var handler: Handler
 
     private lateinit var editor: EditText
-    private lateinit var analyzeBtn: Button
     private lateinit var resultsScroll: ScrollView
     private lateinit var resultsContainer: LinearLayout
     private lateinit var loadingBar: ProgressBar
@@ -62,18 +58,40 @@ class MainActivity : ComponentActivity() {
     private var analyzeDebounce: Runnable? = null
     private val density by lazy { resources.displayMetrics.density }
 
+    // ────────────────────────── Colors ──────────────────────────
+    private val colEmerald = Color.parseColor("#10b981")
+    private val colEmeraldDark = Color.parseColor("#059669")
+    private val colEmeraldLight = Color.parseColor("#d1fae5")
+    private val colEmeraldBg = Color.parseColor("#ecfdf5")
+    private val colTeal = Color.parseColor("#0d9488")
+    private val colWhite = Color.WHITE
+    private val colBg = Color.parseColor("#ffffff")
+    private val colCardBg = Color.parseColor("#ffffff")
+    private val colDivider = Color.parseColor("#f1f5f9")
+    private val colBorder = Color.parseColor("#e2e8f0")
+    private val colTextPrimary = Color.parseColor("#0f172a")
+    private val colTextSecondary = Color.parseColor("#475569")
+    private val colTextTertiary = Color.parseColor("#94a3b8")
+    private val colCriticalBg = Color.parseColor("#fee2e2")
+    private val colCriticalText = Color.parseColor("#b91c1c")
+    private val colWarningBg = Color.parseColor("#fef3c7")
+    private val colWarningText = Color.parseColor("#92400e")
+    private val colSuggestionBg = Color.parseColor("#d1fae5")
+    private val colSuggestionText = Color.parseColor("#065f46")
+    private val colError = Color.parseColor("#ef4444")
+    private val colAmber = Color.parseColor("#f59e0b")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         api = LinguaAIApi(this)
         handler = Handler(Looper.getMainLooper())
 
-        // Status bar color
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        window.statusBarColor = Color.parseColor("#10b981")
+        window.apply {
+            addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+            statusBarColor = colEmerald
+        }
 
         buildUI()
-
-        // Handle incoming shared text
         handleSharedText(intent)
     }
 
@@ -91,119 +109,175 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ════════════════════════════════════════════════════════════
+    //  UI BUILD
+    // ════════════════════════════════════════════════════════════
+
     private fun buildUI() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#fafafa"))
-            val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+            setBackgroundColor(colBg)
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
             layoutParams = params
         }
 
-        // ===== Header =====
+        root.addView(buildHeader())
+        root.addView(buildScoreSection())
+        root.addView(buildEditorSection())
+        root.addView(buildQuickActionsRow())
+        root.addView(buildAICommandBox())
+        root.addView(buildLoadingBar())
+        root.addView(buildActionsRow())
+        root.addView(buildStatsBar())
+
+        resultsScroll = ScrollView(this)
+        resultsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(16))
+        }
+        resultsScroll.addView(resultsContainer)
+        root.addView(resultsScroll, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        ))
+
+        setContentView(root)
+        showEmptyState()
+    }
+
+    // ────────────────────── Header ──────────────────────
+    private fun buildHeader(): View {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(16) + statusBarHeight(), dp(16), dp(16))
+            setPadding(dp(20), dp(16) + statusBarHeight(), dp(20), dp(16))
             background = GradientDrawable().apply {
-                colors = intArrayOf(Color.parseColor("#10b981"), Color.parseColor("#0d9488"))
+                colors = intArrayOf(colEmerald, colEmeraldDark)
                 orientation = GradientDrawable.Orientation.LEFT_RIGHT
             }
         }
+
         val logoBox = LinearLayout(this).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.WHITE)
+                setColor(colWhite)
             }
-            val lp = LinearLayout.LayoutParams(dp(40), dp(40))
+            val lp = LinearLayout.LayoutParams(dp(44), dp(44))
             lp.rightMargin = dp(12)
             layoutParams = lp
             gravity = Gravity.CENTER
         }
         logoBox.addView(TextView(this).apply {
             text = "Aa"
-            setTextColor(Color.parseColor("#10b981"))
+            setTextColor(colEmerald)
             textSize = 18f
             typeface = Typeface.DEFAULT_BOLD
         })
         header.addView(logoBox)
-        val titleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+
+        val titleBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
         titleBox.addView(TextView(this).apply {
             text = "LinguaAI"
-            setTextColor(Color.WHITE)
-            textSize = 18f
+            setTextColor(colWhite)
+            textSize = 19f
             typeface = Typeface.DEFAULT_BOLD
         })
         titleBox.addView(TextView(this).apply {
             text = "AI Writing Assistant"
             setTextColor(Color.parseColor("#d1fae5"))
-            textSize = 11f
+            textSize = 12f
         })
         header.addView(titleBox)
-        root.addView(header)
 
-        // ===== Score bar =====
+        return header
+    }
+
+    // ────────────────────── Score Section ──────────────────────
+    private fun buildScoreSection(): View {
         val scoreBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            setBackgroundColor(Color.WHITE)
-            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            setBackgroundColor(colWhite)
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
             lp.bottomMargin = dp(1)
             layoutParams = lp
         }
+
         scoreRing = TextView(this).apply {
             text = "—"
-            setTextColor(Color.parseColor("#10b981"))
-            textSize = 20f
+            setTextColor(colEmerald)
+            textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#ecfdf5"))
-                setStroke(dp(3), Color.parseColor("#10b981"))
+                setColor(colEmeraldBg)
+                setStroke(dp(3), colEmerald)
             }
             val lp = LinearLayout.LayoutParams(dp(56), dp(56))
-            lp.rightMargin = dp(12)
+            lp.rightMargin = dp(14)
             layoutParams = lp
         }
         scoreBar.addView(scoreRing)
+
         scoreLabel = TextView(this).apply {
             text = "Writing Score\nStart typing to analyze"
-            setTextColor(Color.parseColor("#1f2937"))
+            setTextColor(colTextPrimary)
             textSize = 13f
             setLineSpacing(2f, 1f)
         }
         scoreBar.addView(scoreLabel)
-        root.addView(scoreBar)
+        return scoreBar
+    }
 
-        // ===== Editor =====
-        val editorLabel = TextView(this).apply {
+    // ────────────────────── Editor Section ──────────────────────
+    private fun buildEditorSection(): View {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(12), dp(20), dp(8))
+        }
+
+        val label = TextView(this).apply {
             text = "  EDITOR"
-            setTextColor(Color.parseColor("#6b7280"))
+            setTextColor(colTextTertiary)
             textSize = 11f
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(dp(16), dp(12), dp(16), dp(4))
+            setPadding(0, 0, 0, dp(6))
         }
-        root.addView(editorLabel)
+        container.addView(label)
+
         editor = EditText(this).apply {
             hint = "Type or paste text to check grammar, spelling, vocabulary, tone, and style...\n\nTip: In any app, select text → Share → LinguaAI to analyze it here."
-            setHintTextColor(Color.parseColor("#9ca3af"))
-            setTextColor(Color.parseColor("#1f2937"))
+            setHintTextColor(colTextTertiary)
+            setTextColor(colTextPrimary)
             textSize = 15f
             setLineSpacing(4f, 1f)
             background = GradientDrawable().apply {
-                cornerRadius = dp(12f)
-                setColor(Color.WHITE)
-                setStroke(dp(1), Color.parseColor("#e5e7eb"))
+                cornerRadius = dp(16f)
+                setColor(colWhite)
+                setStroke(dp(1), colBorder)
             }
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0)
-            lp.weight = 1f
-            lp.leftMargin = dp(16)
-            lp.rightMargin = dp(16)
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
             lp.bottomMargin = dp(8)
             layoutParams = lp
             gravity = Gravity.TOP
+            isVerticalScrollBarEnabled = true
+            movementMethod = ScrollingMovementMethod()
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -214,50 +288,60 @@ class MainActivity : ComponentActivity() {
                 }
             })
         }
-        root.addView(editor)
+        container.addView(editor)
+        return container
+    }
 
-        // ===== Quick action buttons =====
-        val quickRow = LinearLayout(this).apply {
+    // ────────────────────── Quick Actions Row ──────────────────────
+    private fun buildQuickActionsRow(): View {
+        val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(16), dp(4), dp(16), dp(8))
         }
         pasteBtn = makeSmallButton("Paste") { pasteFromClipboard() }
-        quickRow.addView(pasteBtn, buttonParams())
+        row.addView(pasteBtn, buttonParams())
         clipboardBtn = makeSmallButton("Auto-check clipboard") { toggleClipboardMonitor() }
-        quickRow.addView(clipboardBtn, buttonParams())
+        row.addView(clipboardBtn, buttonParams())
         copyBtn = makeSmallButton("Copy") { copyToClipboard() }
-        quickRow.addView(copyBtn, buttonParams())
+        row.addView(copyBtn, buttonParams())
         clearBtn = makeSmallButton("Clear") { clearEditor() }
-        quickRow.addView(clearBtn, buttonParams())
-        root.addView(quickRow)
+        row.addView(clearBtn, buttonParams())
+        return row
+    }
 
-        // ===== AI Command box =====
-        val aiBox = LinearLayout(this).apply {
+    // ────────────────────── AI Command Box ──────────────────────
+    private fun buildAICommandBox(): View {
+        val box = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(4), dp(16), dp(8))
+            setPadding(dp(20), dp(4), dp(20), dp(8))
         }
         aiCommandInput = EditText(this).apply {
             hint = "Ask AI: make professional, shorten, translate..."
-            setHintTextColor(Color.parseColor("#9ca3af"))
-            setTextColor(Color.parseColor("#1f2937"))
+            setHintTextColor(colTextTertiary)
+            setTextColor(colTextPrimary)
             textSize = 13f
             background = GradientDrawable().apply {
-                cornerRadius = dp(8f)
-                setColor(Color.WHITE)
-                setStroke(dp(1), Color.parseColor("#e5e7eb"))
+                cornerRadius = dp(12f)
+                setColor(colWhite)
+                setStroke(dp(1), colBorder)
             }
             setPadding(dp(12), dp(10), dp(12), dp(10))
-            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT)
+            val lp = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
             lp.weight = 1f
             lp.rightMargin = dp(8)
             layoutParams = lp
         }
-        aiBox.addView(aiCommandInput)
+        box.addView(aiCommandInput)
+
         aiCommandBtn = Button(this).apply {
             text = "→"
-            setBackgroundColor(Color.parseColor("#10b981"))
-            setTextColor(Color.WHITE)
+            setBackgroundColor(colEmerald)
+            setTextColor(colWhite)
             textSize = 16f
             typeface = Typeface.DEFAULT_BOLD
             val lp = LinearLayout.LayoutParams(dp(44), dp(44))
@@ -270,18 +354,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        aiBox.addView(aiCommandBtn)
-        root.addView(aiBox)
+        box.addView(aiCommandBtn)
+        return box
+    }
 
-        // ===== Loading bar =====
+    // ────────────────────── Loading Bar ──────────────────────
+    private fun buildLoadingBar(): View {
         loadingBar = ProgressBar(this).apply {
             visibility = View.GONE
-            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(4))
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(4)
+            )
             layoutParams = lp
         }
-        root.addView(loadingBar)
+        return loadingBar
+    }
 
-        // ===== Action buttons row =====
+    // ────────────────────── Action Buttons Row ──────────────────────
+    private fun buildActionsRow(): View {
         val actionScroll = HorizontalScrollView(this)
         val actionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -302,16 +393,19 @@ class MainActivity : ComponentActivity() {
         for ((label, action) in actions) {
             val btn = TextView(this).apply {
                 text = label
-                setTextColor(Color.parseColor("#065f46"))
+                setTextColor(colSuggestionText)
                 textSize = 12f
                 typeface = Typeface.DEFAULT_BOLD
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(8f)
-                    setColor(Color.parseColor("#ecfdf5"))
-                    setStroke(dp(1), Color.parseColor("#a7f3d0"))
+                    cornerRadius = dp(20f)
+                    setColor(colEmeraldBg)
+                    setStroke(dp(1), colEmerald)
                 }
-                setPadding(dp(14), dp(10), dp(14), dp(10))
-                val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                setPadding(dp(14), dp(9), dp(14), dp(9))
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
                 lp.rightMargin = dp(8)
                 layoutParams = lp
                 setOnClickListener { doRewrite(action) }
@@ -319,50 +413,26 @@ class MainActivity : ComponentActivity() {
             actionRow.addView(btn)
         }
         actionScroll.addView(actionRow)
-        root.addView(actionScroll)
+        return actionScroll
+    }
 
-        // ===== Stats bar =====
+    // ────────────────────── Stats Bar ──────────────────────
+    private fun buildStatsBar(): View {
         statsBar = TextView(this).apply {
-            text = "0 words · 0 characters"
-            setTextColor(Color.parseColor("#6b7280"))
+            text = "0 words • 0 characters"
+            setTextColor(colTextSecondary)
             textSize = 11f
-            setPadding(dp(16), dp(4), dp(16), dp(4))
+            setPadding(dp(20), dp(4), dp(20), dp(4))
+            background = GradientDrawable().apply {
+                setColor(colDivider)
+            }
         }
-        root.addView(statsBar)
-
-        // ===== Results =====
-        resultsScroll = ScrollView(this)
-        resultsContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(16))
-        }
-        resultsScroll.addView(resultsContainer)
-        root.addView(resultsScroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(280)))
-
-        setContentView(root)
-
-        // Show empty state
-        showEmptyState()
+        return statsBar
     }
 
-    private fun makeSmallButton(label: String, onClick: () -> Unit): Button {
-        return Button(this).apply {
-            text = label
-            setBackgroundColor(Color.parseColor("#f3f4f6"))
-            setTextColor(Color.parseColor("#374151"))
-            textSize = 11f
-            setOnClickListener { onClick() }
-        }
-    }
-
-    private fun buttonParams(): LinearLayout.LayoutParams {
-        val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT)
-        lp.weight = 1f
-        lp.rightMargin = dp(4)
-        return lp
-    }
-
-    // ===== Analysis =====
+    // ════════════════════════════════════════════════════════════
+    //  ANALYSIS
+    // ════════════════════════════════════════════════════════════
 
     private fun scheduleAnalyze() {
         analyzeDebounce?.let { handler.removeCallbacks(it) }
@@ -397,70 +467,149 @@ class MainActivity : ComponentActivity() {
         })
     }
 
+    // ════════════════════════════════════════════════════════════
+    //  RENDER RESULTS
+    // ════════════════════════════════════════════════════════════
+
     private fun renderResults(a: LinguaAIApi.Analysis) {
         resultsContainer.removeAllViews()
 
-        // Summary header
-        val summary = TextView(this).apply {
-            text = if (a.issues.isEmpty()) {
-                "✓ All clear! No issues found."
-            } else {
-                "${a.issues.size} issue${if (a.issues.size > 1) "s" else ""} found · Tone: ${a.tone} · Words: ${a.wordCount}"
+        // Summary header card
+        val summaryCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(16f)
+                if (a.issues.isEmpty()) {
+                    setColor(colEmeraldBg)
+                    setStroke(dp(1), colEmerald)
+                } else {
+                    setColor(Color.parseColor("#f8fafc"))
+                    setStroke(dp(1), colBorder)
+                }
             }
-            setTextColor(if (a.issues.isEmpty()) Color.parseColor("#10b981") else Color.parseColor("#1f2937"))
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, dp(12))
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            lp.bottomMargin = dp(12)
+            layoutParams = lp
         }
-        resultsContainer.addView(summary)
+
+        val summaryText = if (a.issues.isEmpty()) {
+            "✓ All clear! No issues found."
+        } else {
+            "${a.issues.size} issue${if (a.issues.size > 1) "s" else ""} found  •  Tone: ${a.tone}  •  Words: ${a.wordCount}"
+        }
+        summaryCard.addView(TextView(this).apply {
+            text = summaryText
+            setTextColor(if (a.issues.isEmpty()) colEmerald else colTextPrimary)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+        })
+
+        if (a.issues.isNotEmpty()) {
+            // Accept all button
+            val acceptAllBtn = TextView(this).apply {
+                text = "Accept all fixes"
+                setTextColor(colWhite)
+                textSize = 12f
+                typeface = Typeface.DEFAULT_BOLD
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(10f)
+                    setColor(colEmerald)
+                }
+                setPadding(dp(14), dp(8), dp(14), dp(8))
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                lp.topMargin = dp(10)
+                layoutParams = lp
+                setOnClickListener {
+                    if (a.correctedText.isNotEmpty()) {
+                        editor.setText(a.correctedText)
+                        currentText = a.correctedText
+                        editor.setSelection(a.correctedText.length)
+                        toast("All fixes applied")
+                        scheduleAnalyze()
+                    }
+                }
+            }
+            summaryCard.addView(acceptAllBtn)
+        }
+        resultsContainer.addView(summaryCard)
 
         // Issue cards
         for ((idx, issue) in a.issues.withIndex()) {
             resultsContainer.addView(buildIssueCard(issue, idx, a))
         }
-
-        // Vocabulary section
-        if (a.issues.isNotEmpty()) {
-            resultsContainer.addView(makeSectionLabel("VOCABULARY"))
-        }
     }
 
     private fun buildIssueCard(issue: LinguaAIApi.Issue, idx: Int, a: LinguaAIApi.Analysis): View {
+        val sevColor = when (issue.severity) {
+            "critical" -> colCriticalText
+            "warning" -> colWarningText
+            else -> colSuggestionText
+        }
+        val sevBg = when (issue.severity) {
+            "critical" -> colCriticalBg
+            "warning" -> colWarningBg
+            else -> colSuggestionBg
+        }
+
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
             background = GradientDrawable().apply {
-                cornerRadius = dp(12f)
-                setColor(Color.parseColor("#fafafa"))
-                setStroke(dp(1), Color.parseColor("#e5e7eb"))
+                cornerRadius = dp(16f)
+                setColor(colCardBg)
+                setStroke(dp(1), colBorder)
             }
-            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
             lp.bottomMargin = dp(10)
             layoutParams = lp
+            elevation = dp(2f)
         }
 
-        // Badge
-        val sevColor = when (issue.severity) {
-            "critical" -> Color.parseColor("#fee2e2") to Color.parseColor("#b91c1c")
-            "warning" -> Color.parseColor("#fef3c7") to Color.parseColor("#92400e")
-            else -> Color.parseColor("#d1fae5") to Color.parseColor("#065f46")
+        // Badge row
+        val badgeRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
         val badge = TextView(this).apply {
             text = "  ${issue.type.uppercase()}  "
-            setTextColor(sevColor.second)
+            setTextColor(sevColor)
             textSize = 10f
             typeface = Typeface.DEFAULT_BOLD
             background = GradientDrawable().apply {
                 cornerRadius = dp(6f)
-                setColor(sevColor.first)
+                setColor(sevBg)
             }
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            lp.rightMargin = dp(8)
+            layoutParams = lp
         }
-        card.addView(badge)
+        badgeRow.addView(badge)
 
-        // Fix
+        val sevLabel = TextView(this).apply {
+            text = issue.severity
+            setTextColor(colTextTertiary)
+            textSize = 10f
+        }
+        badgeRow.addView(sevLabel)
+        card.addView(badgeRow)
+
+        // Fix display
         val fix = TextView(this).apply {
             text = "${issue.original}  →  ${issue.suggestion}"
-            setTextColor(Color.parseColor("#1f2937"))
+            setTextColor(colTextPrimary)
             textSize = 14f
             setLineSpacing(2f, 1f)
             setPadding(0, dp(8), 0, dp(4))
@@ -468,23 +617,35 @@ class MainActivity : ComponentActivity() {
         card.addView(fix)
 
         // Explanation
-        val explain = TextView(this).apply {
-            text = issue.explanation
-            setTextColor(Color.parseColor("#6b7280"))
-            textSize = 12f
-            setPadding(0, 0, 0, dp(10))
+        if (issue.explanation.isNotEmpty()) {
+            val explain = TextView(this).apply {
+                text = issue.explanation
+                setTextColor(colTextSecondary)
+                textSize = 12f
+                setLineSpacing(1f, 1f)
+                setPadding(0, 0, 0, dp(4))
+            }
+            card.addView(explain)
         }
-        card.addView(explain)
 
-        // Buttons
+        // Button row
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
         val replaceBtn = Button(this).apply {
             text = "Replace"
-            setBackgroundColor(Color.parseColor("#10b981"))
-            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(10f)
+                setColor(colEmerald)
+            }
+            setTextColor(colWhite)
             textSize = 11f
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            lp.rightMargin = dp(8)
+            layoutParams = lp
             setOnClickListener {
                 val pos = currentText.indexOf(issue.original)
                 val newText = currentText.replaceFirst(issue.original, issue.suggestion, ignoreCase = false)
@@ -496,11 +657,15 @@ class MainActivity : ComponentActivity() {
                 scheduleAnalyze()
             }
         }
-        btnRow.addView(replaceBtn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) })
+        btnRow.addView(replaceBtn)
+
         val copyFixBtn = Button(this).apply {
             text = "Copy fix"
-            setBackgroundColor(Color.parseColor("#f3f4f6"))
-            setTextColor(Color.parseColor("#374151"))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(10f)
+                setColor(colDivider)
+            }
+            setTextColor(colTextSecondary)
             textSize = 11f
             setOnClickListener {
                 val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
@@ -517,28 +682,56 @@ class MainActivity : ComponentActivity() {
     private fun makeSectionLabel(text: String): TextView {
         return TextView(this).apply {
             this.text = text
-            setTextColor(Color.parseColor("#6b7280"))
+            setTextColor(colTextSecondary)
             textSize = 11f
             typeface = Typeface.DEFAULT_BOLD
             setPadding(0, dp(16), 0, dp(8))
         }
     }
 
+    private fun makeSmallButton(label: String, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            text = label
+            background = GradientDrawable().apply {
+                cornerRadius = dp(10f)
+                setColor(colDivider)
+            }
+            setTextColor(colTextSecondary)
+            textSize = 11f
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun buttonParams(): LinearLayout.LayoutParams {
+        val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        lp.weight = 1f
+        lp.rightMargin = dp(4)
+        return lp
+    }
+
     private fun makeLoadingView(): View {
-        return TextView(this).apply {
-            text = "Analyzing your text..."
-            setTextColor(Color.parseColor("#6b7280"))
-            textSize = 13f
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(0, dp(24), 0, dp(24))
+            addView(ProgressBar(this@MainActivity).apply {
+                val lp = LinearLayout.LayoutParams(dp(32), dp(32))
+                lp.bottomMargin = dp(8)
+                layoutParams = lp
+            })
+            addView(TextView(this@MainActivity).apply {
+                text = "Analyzing your text..."
+                setTextColor(colTextSecondary)
+                textSize = 13f
+            })
         }
     }
 
     private fun showEmptyState() {
         resultsContainer.removeAllViews()
         resultsContainer.addView(TextView(this).apply {
-            text = "✦\nStart typing to see grammar suggestions.\n\nTip: In any app, select text → Share → LinguaAI to analyze it here."
-            setTextColor(Color.parseColor("#9ca3af"))
+            text = "✓\nStart typing to see grammar suggestions.\n\nTip: In any app, select text → Share → LinguaAI to analyze it here."
+            setTextColor(colTextTertiary)
             textSize = 12f
             gravity = Gravity.CENTER
             setPadding(dp(24), dp(24), dp(24), dp(24))
@@ -552,7 +745,7 @@ class MainActivity : ComponentActivity() {
         resultsContainer.removeAllViews()
         resultsContainer.addView(TextView(this).apply {
             text = "⚠ Analysis failed: $msg\n\nCheck your internet connection and try again."
-            setTextColor(Color.parseColor("#ef4444"))
+            setTextColor(colError)
             textSize = 12f
             setPadding(0, dp(16), 0, dp(16))
         })
@@ -561,21 +754,23 @@ class MainActivity : ComponentActivity() {
     private fun updateScoreRing(score: Int, issueCount: Int) {
         scoreRing.text = score.toString()
         val color = when {
-            score >= 80 -> Color.parseColor("#10b981")
-            score >= 60 -> Color.parseColor("#f59e0b")
-            else -> Color.parseColor("#ef4444")
+            score >= 80 -> colEmerald
+            score >= 60 -> colAmber
+            else -> colError
         }
         scoreRing.setTextColor(color)
         (scoreRing.background as? GradientDrawable)?.setStroke(dp(3), color)
-        scoreLabel.text = "Writing Score\n$issueCount issues found · ${currentAnalysis?.tone ?: "—"}"
+        scoreLabel.text = "Writing Score\n$issueCount issues found  •  ${currentAnalysis?.tone ?: "—"}"
     }
 
     private fun updateStats() {
         val words = if (currentText.trim().isEmpty()) 0 else currentText.trim().split(Regex("\\s+")).size
-        statsBar.text = "$words words · ${currentText.length} characters"
+        statsBar.text = "$words words • ${currentText.length} characters"
     }
 
-    // ===== AI Rewrite =====
+    // ════════════════════════════════════════════════════════════
+    //  AI REWRITE
+    // ════════════════════════════════════════════════════════════
 
     private fun doRewrite(action: String, instruction: String? = null, targetLang: String? = null) {
         if (currentText.isBlank()) {
@@ -597,33 +792,47 @@ class MainActivity : ComponentActivity() {
 
     private fun showRewriteResult(result: String) {
         resultsContainer.removeAllViews()
-        resultsContainer.addView(TextView(this).apply {
+
+        val titleLabel = TextView(this).apply {
             text = "AI Rewrite Result"
-            setTextColor(Color.parseColor("#064e3b"))
+            setTextColor(colSuggestionText)
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             setPadding(0, 0, 0, dp(8))
-        })
-        resultsContainer.addView(TextView(this).apply {
+        }
+        resultsContainer.addView(titleLabel)
+
+        val resultView = TextView(this).apply {
             text = result
-            setTextColor(Color.parseColor("#1f2937"))
+            setTextColor(colTextPrimary)
             textSize = 14f
             setLineSpacing(4f, 1f)
             background = GradientDrawable().apply {
                 cornerRadius = dp(12f)
-                setColor(Color.parseColor("#ecfdf5"))
-                setStroke(dp(1), Color.parseColor("#a7f3d0"))
+                setColor(colEmeraldBg)
+                setStroke(dp(1), colEmerald)
             }
             setPadding(dp(16), dp(16), dp(16), dp(16))
-        })
+        }
+        resultsContainer.addView(resultView)
+
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(12), 0, 0)
         }
         val replaceBtn = Button(this).apply {
             text = "Use this"
-            setBackgroundColor(Color.parseColor("#10b981"))
-            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(10f)
+                setColor(colEmerald)
+            }
+            setTextColor(colWhite)
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            lp.rightMargin = dp(8)
+            layoutParams = lp
             setOnClickListener {
                 editor.setText(result)
                 editor.setSelection(result.length)
@@ -632,11 +841,15 @@ class MainActivity : ComponentActivity() {
                 scheduleAnalyze()
             }
         }
-        btnRow.addView(replaceBtn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) })
+        btnRow.addView(replaceBtn)
+
         val copyBtn = Button(this).apply {
             text = "Copy"
-            setBackgroundColor(Color.parseColor("#f3f4f6"))
-            setTextColor(Color.parseColor("#374151"))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(10f)
+                setColor(colDivider)
+            }
+            setTextColor(colTextSecondary)
             setOnClickListener {
                 val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(android.content.ClipData.newPlainText("LinguaAI", result))
@@ -647,7 +860,9 @@ class MainActivity : ComponentActivity() {
         resultsContainer.addView(btnRow)
     }
 
-    // ===== Clipboard =====
+    // ════════════════════════════════════════════════════════════
+    //  CLIPBOARD
+    // ════════════════════════════════════════════════════════════
 
     private var clipboardMonitoring = false
     private var clipboardCheckRunnable: Runnable? = null
@@ -735,7 +950,9 @@ class MainActivity : ComponentActivity() {
         updateStats()
     }
 
-    // ===== Utils =====
+    // ════════════════════════════════════════════════════════════
+    //  UTILS
+    // ════════════════════════════════════════════════════════════
 
     private fun dp(v: Int): Int = (v * density).toInt()
     private fun dp(v: Float): Float = v * density

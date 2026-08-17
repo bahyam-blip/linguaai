@@ -7,14 +7,6 @@ import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.Executors
 
-/**
- * HTTP client for the LinguaAI backend.
- * Two endpoints:
- *   POST /api/grammar  — analyze text, return issues + tone + vocab + stats
- *   POST /api/rewrite  — rewrite/transform text (tone change, shorten, translate, ai_command, etc.)
- *
- * Uses HttpURLConnection (no extra deps). All calls run on a single-thread executor.
- */
 class LinguaAIApi(private val context: Context) {
     private val executor = Executors.newSingleThreadExecutor { r -> Thread(r, "LinguaAI-Api").also { it.isDaemon = true } }
 
@@ -26,24 +18,28 @@ class LinguaAIApi(private val context: Context) {
     )
     data class Analysis(
         val issues: List<Issue>, val correctedText: String, val tone: String,
-        val formality: String, val sentiment: String, val confidence: Int,
-        val overallScore: Int, val wordCount: Int
+        val formality: String, val sentiment: String,
+        val confidence: Int, val overallScore: Int, val wordCount: Int
     )
     data class RewriteResult(val result: String, val alternatives: List<String> = emptyList())
 
     companion object {
-        private const val TAG = "LinguaAIApi"
-        const val DEFAULT_ENDPOINT = "https://preview-linguaai.space-z.ai/api/grammar"
+        private val TAG = "LinguaAIApi"
     }
 
     private fun baseUrl(): String {
-        val prefs = context.getSharedPreferences("linguaai_settings", android.content.Context.MODE_PRIVATE)
-        val ep = prefs.getString("endpoint", DEFAULT_ENDPOINT) ?: DEFAULT_ENDPOINT
-        // endpoint is /api/grammar — derive base url
+        val prefs = context.getSharedPreferences("linguaai_settings", Context.MODE_PRIVATE)
+        val defaultUrl = BuildConfig.SUPABASE_URL
+        val ep = prefs.getString("endpoint", defaultUrl) ?: defaultUrl
         return if (ep.endsWith("/api/grammar")) ep.removeSuffix("/api/grammar")
         else if (ep.endsWith("/api/")) ep.removeSuffix("/api/")
         else if (ep.endsWith("/api")) ep.removeSuffix("/api")
         else ep
+    }
+
+    private fun getApiKey(): String {
+        val prefs = context.getSharedPreferences("linguaai_settings", Context.MODE_PRIVATE)
+        return prefs.getString("supabase_anon_key", BuildConfig.SUPABASE_ANON_KEY) ?: BuildConfig.SUPABASE_ANON_KEY
     }
 
     fun analyze(text: String, goal: String, cb: Callback<Analysis>) {
@@ -52,8 +48,9 @@ class LinguaAIApi(private val context: Context) {
                 val payload = JSONObject().apply {
                     put("text", text)
                     put("goal", goal)
+                    put("mode", "full")
                 }
-                val raw = post("${baseUrl()}/api/grammar", payload)
+                val raw = post("${baseUrl()}", payload)
                 val j = JSONObject(raw)
                 val issuesArr = j.optJSONArray("issues") ?: JSONArray()
                 val issues = (0 until issuesArr.length()).map { i ->
@@ -71,7 +68,7 @@ class LinguaAIApi(private val context: Context) {
                 val analysis = Analysis(
                     issues = issues,
                     correctedText = j.optString("correctedText", text),
-                    tone = tone?.optString("tone", "—") ?: "—",
+                    tone = tone?.optString("tone", "\u2014") ?: "\u2014",
                     formality = tone?.optString("formality", "neutral") ?: "neutral",
                     sentiment = tone?.optString("sentiment", "neutral") ?: "neutral",
                     confidence = tone?.optInt("confidence", 0) ?: 0,
@@ -96,7 +93,7 @@ class LinguaAIApi(private val context: Context) {
                     instruction?.let { put("instruction", it) }
                     targetLang?.let { put("targetLang", it) }
                 }
-                val raw = post("${baseUrl()}/api/rewrite", payload)
+                val raw = post("${baseUrl()}", payload)
                 val j = JSONObject(raw)
                 if (j.has("error")) {
                     mainHandler().post { cb.onError(j.optString("error", "Rewrite failed")) }
@@ -121,6 +118,11 @@ class LinguaAIApi(private val context: Context) {
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=UTF-8")
             setRequestProperty("Accept", "application/json")
+            val apiKey = getApiKey()
+            if (apiKey.isNotEmpty()) {
+                setRequestProperty("apikey", apiKey)
+                setRequestProperty("Authorization", "Bearer $apiKey")
+            }
         }
         try {
             val body = payload.toString().toByteArray(Charsets.UTF_8)
