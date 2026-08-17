@@ -1,37 +1,18 @@
 // LinguaAI extension — background service worker
-// Calls Sarvam AI Chat Completion API directly.
-// The API key is stored in chrome.storage.sync (user enters it via the options page).
+// Calls a Supabase Edge Function (grammar-check) instead of the Sarvam API directly.
+// The Sarvam AI API key is kept server-side inside the Edge Function, so users never
+// need to enter one. Only the Supabase Project URL and anon key (safe to expose in
+// client apps) are required — both are stored in chrome.storage.sync and entered via
+// the options page.
 
-const SARVAM_API_URL = "https://api.sarvam.ai/v1/chat/completions";
-const SARVAM_MODEL = "sarvam-105b";
+const EDGE_FUNCTION_PATH = "/functions/v1/grammar-check";
 
-const GRAMMAR_SYSTEM_PROMPT = `You are LinguaAI, an expert grammar and writing assistant. Analyze the provided text for grammar, spelling, punctuation, style, clarity, vocabulary, and capitalization issues.
-
-Return your analysis as a JSON object with this exact structure:
-{
-  "issues": [
-    {
-      "type": "grammar|spelling|punctuation|style|clarity|vocabulary|capitalization",
-      "severity": "critical|warning|suggestion",
-      "original": "exact substring from the text that has an issue",
-      "suggestion": "the corrected version",
-      "explanation": "brief explanation of the issue"
-    }
-  ],
-  "correctedText": "the fully corrected text",
-  "overallScore": <number 0-100>
-}
-
-Rules:
-- "original" must be an EXACT substring from the input text (case-sensitive match)
-- Only include issues where the suggestion genuinely differs from the original
-- If the text is already correct, return an empty issues array and set correctedText to the original text
-- Be concise but thorough — focus on real errors, not subjective stylistic preferences
-- severity "critical" = grammar/spelling errors; "warning" = punctuation/capitalization; "suggestion" = style/clarity improvements`;
-
-async function getApiKey() {
-  const { linguaaiApiKey = "" } = await chrome.storage.sync.get("linguaaiApiKey");
-  return linguaaiApiKey;
+async function getSupabaseConfig() {
+  const { supabaseUrl = "", supabaseAnonKey = "" } = await chrome.storage.sync.get([
+    "supabaseUrl",
+    "supabaseAnonKey",
+  ]);
+  return { supabaseUrl, supabaseAnonKey };
 }
 
 async function getSettings() {
@@ -48,19 +29,25 @@ async function getSettings() {
   return stored;
 }
 
+// Analyze text for grammar/writing issues via the Supabase Edge Function.
+// The Edge Function owns the Sarvam API call, prompt engineering and response parsing,
+// and already returns { issues, correctedText, overallScore }.
 async function analyzeText(text, mode = "full") {
-  const apiKey = await getApiKey();
-  if (!apiKey) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+
+  if (!supabaseUrl || !supabaseAnonKey) {
     return {
       ok: false,
-      error: "No API key configured. Open the LinguaAI extension options to add your Sarvam AI API key.",
+      error:
+        "Supabase is not configured. Open the LinguaAI extension options to add your Supabase Project URL and anon key.",
     };
   }
 
-  const settings = mode === "full" ? await getSettings() : null;
-  let systemPrompt = GRAMMAR_SYSTEM_PROMPT;
-
-  if (settings) {
+  // Pass the enabled issue categories through to the Edge Function so it can honour
+  // the user's toggle selections. Omitted when mode is "stats-only".
+  let categories = null;
+  if (mode === "full") {
+    const settings = await getSettings();
     const enabledTypes = [];
     if (settings.checkGrammar) enabledTypes.push("grammar");
     if (settings.checkSpelling) enabledTypes.push("spelling");
@@ -69,35 +56,27 @@ async function analyzeText(text, mode = "full") {
     if (settings.checkClarity) enabledTypes.push("clarity");
     if (settings.checkVocabulary) enabledTypes.push("vocabulary");
     if (settings.checkCapitalization) enabledTypes.push("capitalization");
-
     if (enabledTypes.length > 0 && enabledTypes.length < 7) {
-      systemPrompt += "\n\nOnly check for these issue types: " + enabledTypes.join(", ") + ". Ignore other issue types.";
+      categories = enabledTypes;
     }
   }
 
-  if (mode === "stats-only") {
-    systemPrompt += "\n\nReturn only the overallScore and an empty issues array. Do not list individual issues.";
-  }
+  const endpoint = supabaseUrl.replace(/\/+$/, "") + EDGE_FUNCTION_PATH;
 
   const body = {
-    model: SARVAM_MODEL,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: "Analyze this text:\n\n" + text },
-    ],
-    temperature: 0.2,
-    max_tokens: 4096,
-    reasoning_effort: null,
+    text,
+    mode,
   };
+  if (categories) body.categories = categories;
 
   let res;
   try {
-    res = await fetch(SARVAM_API_URL, {
+    res = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "api-subscription-key": apiKey,
-        Authorization: "Bearer " + apiKey,
+        apikey: supabaseAnonKey,
+        Authorization: "Bearer " + supabaseAnonKey,
       },
       body: JSON.stringify(body),
     });
@@ -109,55 +88,118 @@ async function analyzeText(text, mode = "full") {
     let detail = "";
     try {
       const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.detail || JSON.stringify(errBody);
+      detail =
+        errBody?.error?.message || errBody?.detail || errBody?.error || JSON.stringify(errBody);
     } catch {
-      try { detail = await res.text(); } catch { detail = ""; }
+      try {
+        detail = await res.text();
+      } catch {
+        detail = "";
+      }
     }
-    if (res.status === 403) {
-      return { ok: false, error: "Invalid API key. Please check your Sarvam AI API key in the extension options." };
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: false,
+        error:
+          "Supabase authentication failed. Please check your Supabase Project URL and anon key in the extension options.",
+      };
     }
-    return { ok: false, error: "Sarvam API error " + res.status + ": " + detail.slice(0, 200) };
+    return {
+      ok: false,
+      error: "Supabase Edge Function error " + res.status + ": " + detail.slice(0, 200),
+    };
   }
 
   let data;
   try {
     data = await res.json();
   } catch {
-    return { ok: false, error: "Failed to parse API response." };
+    return { ok: false, error: "Failed to parse Supabase Edge Function response." };
   }
 
-  const content = data?.choices?.[0]?.message?.content ?? "";
-
-  let parsed = null;
-  try {
-    parsed = JSON.parse(content.trim());
-  } catch {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        parsed = JSON.parse(jsonMatch[0]);
-      } catch {
-        try {
-          const cleaned = jsonMatch[0]
-            .replace(/,\s*([}\]])/g, "$1")
-            .replace(/[\u0000-\u001F]+/g, " ");
-          parsed = JSON.parse(cleaned);
-        } catch {
-          parsed = null;
-        }
-      }
-    }
-  }
-
-  if (!parsed) {
-    return { ok: false, error: "Could not parse analysis from API response." };
-  }
-
-  const issues = Array.isArray(parsed.issues) ? parsed.issues.filter(i => i && i.original && i.suggestion) : [];
-  const correctedText = typeof parsed.correctedText === "string" ? parsed.correctedText : text;
-  const overallScore = typeof parsed.overallScore === "number" ? parsed.overallScore : 100;
+  // The Edge Function returns the format the extension already expects:
+  // { issues, correctedText, overallScore }
+  const issues = Array.isArray(data.issues)
+    ? data.issues.filter((i) => i && i.original && i.suggestion)
+    : [];
+  const correctedText = typeof data.correctedText === "string" ? data.correctedText : text;
+  const overallScore = typeof data.overallScore === "number" ? data.overallScore : 100;
 
   return { ok: true, data: { issues, correctedText, overallScore } };
+}
+
+// Rewrite / transform text via the same Supabase Edge Function.
+// The action (e.g. "rewrite", "simplify", "formalize", "translate") plus an optional
+// instruction and target language are passed straight through for the Edge Function.
+async function rewriteText(text, { action, instruction, targetLang } = {}) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return {
+      ok: false,
+      error:
+        "Supabase is not configured. Open the LinguaAI extension options to add your Supabase Project URL and anon key.",
+    };
+  }
+
+  const endpoint = supabaseUrl.replace(/\/+$/, "") + EDGE_FUNCTION_PATH;
+
+  const body = {
+    text,
+    action,
+    instruction,
+    targetLang,
+  };
+
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseAnonKey,
+        Authorization: "Bearer " + supabaseAnonKey,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    return { ok: false, error: "Network error: " + err.message };
+  }
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const errBody = await res.json();
+      detail =
+        errBody?.error?.message || errBody?.detail || errBody?.error || JSON.stringify(errBody);
+    } catch {
+      try {
+        detail = await res.text();
+      } catch {
+        detail = "";
+      }
+    }
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: false,
+        error:
+          "Supabase authentication failed. Please check your Supabase Project URL and anon key in the extension options.",
+      };
+    }
+    return {
+      ok: false,
+      error: "Supabase Edge Function error " + res.status + ": " + detail.slice(0, 200),
+    };
+  }
+
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    return { ok: false, error: "Failed to parse Supabase Edge Function response." };
+  }
+
+  return { ok: true, data };
 }
 
 chrome.runtime.onInstalled.addListener(() => {
