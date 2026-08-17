@@ -126,6 +126,7 @@ export default function Home() {
   const [text, setText] = useState("");
   const [analysis, setAnalysis] = useState<GrammarResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [activeIssue, setActiveIssue] = useState<number | null>(null);
   const [acceptedFixes, setAcceptedFixes] = useState<Set<number>>(new Set());
   const [dismissedIssues, setDismissedIssues] = useState<Set<number>>(new Set());
@@ -157,6 +158,7 @@ export default function Home() {
       return;
     }
     setLoading(true);
+      setError(null);
     try {
       const res = await fetch("/api/grammar", {
         method: "POST",
@@ -170,6 +172,7 @@ export default function Home() {
       if (data.error) toast.error("Analysis issue", { description: data.error });
     } catch (err: any) {
       toast.error("Network error", { description: err?.message });
+        setError(err?.message || "Failed to analyze text");
     } finally {
       setLoading(false);
     }
