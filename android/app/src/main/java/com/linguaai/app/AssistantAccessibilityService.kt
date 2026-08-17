@@ -11,19 +11,6 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.util.concurrent.Executors
 
-/**
- * LinguaAI Floating Assistant — AccessibilityService
- *
- * Watches text fields in ANY app (WhatsApp, Gmail, etc.).
- * When the user types or selects text, debounces and sends the text
- * to the Supabase Edge Function for grammar/vocabulary/style analysis.
- * Shows a floating bubble overlay with the suggestion count.
- * When the user taps the bubble, a panel expands showing individual
- * issues with Accept/Dismiss buttons.
- *
- * This is the same architecture Grammarly's Android app uses:
- * AccessibilityService to detect text + floating overlay to show suggestions.
- */
 class AssistantAccessibilityService : AccessibilityService() {
 
     companion object {
@@ -84,7 +71,6 @@ class AssistantAccessibilityService : AccessibilityService() {
 
         if (!isEditable) return
 
-        // Skip password fields
         try {
             val inputType = source.inputType
             val variation = inputType and InputType.TYPE_MASK_VARIATION
@@ -106,7 +92,6 @@ class AssistantAccessibilityService : AccessibilityService() {
         currentTextNode = source
         currentText = text
 
-        // Debounce — wait for user to stop typing
         analyzeRunnable?.let { handler.removeCallbacks(it) }
         val r = Runnable {
             if (currentText.trim().length >= MIN_TEXT_LENGTH) {
@@ -123,7 +108,7 @@ class AssistantAccessibilityService : AccessibilityService() {
 
         val api = LinguaAIApi(this)
         api.analyze(text, "general", object : LinguaAIApi.Callback<LinguaAIApi.Analysis> {
-            override fun onSuccess(result: LinguAAIApi.Analysis) {
+            override fun onSuccess(result: LinguaAIApi.Analysis) {
                 lastAnalysis = result
                 if (result.issues.isNotEmpty()) {
                     bubbleManager?.showSuggestionCount(result.issues.size, result.overallScore)
