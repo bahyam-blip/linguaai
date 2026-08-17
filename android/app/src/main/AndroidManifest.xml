@@ -4,16 +4,13 @@
     package="com.linguaai.app">
 
     <!--
-        MINIMUM PERMISSIONS — no Play Protect warnings.
-        INTERNET to call the Supabase Edge Function.
-        FOREGROUND_SERVICE to keep the accessibility service alive.
-        No SYSTEM_ALERT_WINDOW needed — TYPE_ACCESSIBILITY_OVERLAY is used.
+        MINIMUM PERMISSIONS — only INTERNET and ACCESS_NETWORK_STATE.
+        No FOREGROUND_SERVICE, no POST_NOTIFICATIONS, no SYSTEM_ALERT_WINDOW.
+        The AccessibilityService is system-managed and does not need to be
+        declared as a foreground service. This keeps Play Protect happy.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <supports-screens
         android:smallScreens="true"
@@ -64,21 +61,18 @@
             Watches text fields in ANY app and shows a floating bubble
             with grammar/vocabulary/style suggestions.
             Uses TYPE_ACCESSIBILITY_OVERLAY so no SYSTEM_ALERT_WINDOW permission is needed.
+            No foregroundServiceType — AccessibilityService is system-managed.
         -->
         <service
             android:name=".AssistantAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Writing Assistant — monitors text input across apps to provide grammar, spelling, vocabulary, and style suggestions." />
-         </service>
+        </service>
     </application>
 </manifest>
