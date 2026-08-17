@@ -27,7 +27,7 @@ import java.util.concurrent.Executors
 class AssistantAccessibilityService : AccessibilityService() {
 
     companion object {
-        private const val TAG = "LinguaAI_A11y"
+        private const val TAG = "LinguAAI_A11y"
         private const val DEBOUNCE_MS = 1500L
         private const val MIN_TEXT_LENGTH = 3
         private const val MAX_TEXT_LENGTH = 5000
@@ -86,7 +86,7 @@ class AssistantAccessibilityService : AccessibilityService() {
 
         // Skip password fields
         try {
-            val inputType = event.inputType
+            val inputType = source.inputType
             val variation = inputType and InputType.TYPE_MASK_VARIATION
             if (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
                 variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
@@ -123,7 +123,7 @@ class AssistantAccessibilityService : AccessibilityService() {
 
         val api = LinguaAIApi(this)
         api.analyze(text, "general", object : LinguaAIApi.Callback<LinguaAIApi.Analysis> {
-            override fun onSuccess(result: LinguaAIApi.Analysis) {
+            override fun onSuccess(result: LinguAAIApi.Analysis) {
                 lastAnalysis = result
                 if (result.issues.isNotEmpty()) {
                     bubbleManager?.showSuggestionCount(result.issues.size, result.overallScore)
@@ -133,7 +133,7 @@ class AssistantAccessibilityService : AccessibilityService() {
             }
 
             override fun onError(message: String) {
-                Log.e(TAG, "Analysis error: $message")
+                Log.d(TAG, "Analysis error: $message")
                 bubbleManager?.hideBubble()
             }
         })
