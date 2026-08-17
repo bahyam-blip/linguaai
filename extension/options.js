@@ -1,4 +1,5 @@
-const apiKeyInput = document.getElementById("apiKey");
+const supabaseUrlInput = document.getElementById("supabaseUrl");
+const supabaseAnonKeyInput = document.getElementById("supabaseAnonKey");
 const toggleKeyBtn = document.getElementById("toggleKey");
 const saveKeyBtn = document.getElementById("saveKey");
 const testKeyBtn = document.getElementById("testKey");
@@ -19,7 +20,8 @@ const CATEGORIES = [
 
 async function loadSettings() {
   const defaults = {
-    linguaaiApiKey: "",
+    supabaseUrl: "",
+    supabaseAnonKey: "",
     enabled: true,
     autoCheck: true,
     checkGrammar: true,
@@ -31,7 +33,8 @@ async function loadSettings() {
     checkCapitalization: true,
   };
   const stored = await chrome.storage.sync.get(defaults);
-  apiKeyInput.value = stored.linguaaiApiKey;
+  supabaseUrlInput.value = stored.supabaseUrl;
+  supabaseAnonKeyInput.value = stored.supabaseAnonKey;
   enabledToggle.checked = stored.enabled;
   autoCheckToggle.checked = stored.autoCheck;
   categoryTogglesEl.innerHTML = CATEGORIES.map((cat) => '<div class="toggle-row"><div class="toggle-info"><span class="toggle-label">' + cat.label + '</span><span class="toggle-desc">' + cat.desc + '</span></div><label class="switch"><input type="checkbox" id="' + cat.key + '" ' + (stored[cat.key] ? "checked" : "") + ' /><span class="slider"></span></label></div>').join("");
@@ -46,31 +49,33 @@ async function loadSettings() {
 }
 
 saveKeyBtn.addEventListener("click", () => {
-  const key = apiKeyInput.value.trim();
-  if (!key) {
-    testResultEl.textContent = "Please enter an API key.";
+  const url = supabaseUrlInput.value.trim();
+  const anonKey = supabaseAnonKeyInput.value.trim();
+  if (!url || !anonKey) {
+    testResultEl.textContent = "Please enter both your Supabase URL and anon key.";
     testResultEl.className = "test-result error";
     return;
   }
-  chrome.storage.sync.set({ linguaaiApiKey: key }, () => {
-    testResultEl.textContent = "API key saved.";
+  chrome.storage.sync.set({ supabaseUrl: url, supabaseAnonKey: anonKey }, () => {
+    testResultEl.textContent = "Supabase configuration saved.";
     testResultEl.className = "test-result success";
     setTimeout(() => { testResultEl.textContent = ""; }, 3000);
   });
 });
 
 testKeyBtn.addEventListener("click", () => {
-  const key = apiKeyInput.value.trim();
-  if (!key) {
-    testResultEl.textContent = "Enter an API key first.";
+  const url = supabaseUrlInput.value.trim();
+  const anonKey = supabaseAnonKeyInput.value.trim();
+  if (!url || !anonKey) {
+    testResultEl.textContent = "Enter your Supabase URL and anon key first.";
     testResultEl.className = "test-result error";
     return;
   }
-  chrome.storage.sync.set({ linguaaiApiKey: key }, () => {
+  chrome.storage.sync.set({ supabaseUrl: url, supabaseAnonKey: anonKey }, () => {
     testResultEl.innerHTML = '<span style="color:#6b7280;">Testing…</span>';
     chrome.runtime.sendMessage({ type: "LINGUAAI_TEST_KEY" }, (resp) => {
       if (resp?.ok) {
-        testResultEl.textContent = "✓ Connection successful! Sarvam AI is ready.";
+        testResultEl.textContent = "✓ Connection successful! Supabase Edge Function is ready.";
         testResultEl.className = "test-result success";
       } else {
         testResultEl.textContent = "✗ " + (resp?.error || "Connection failed.");
@@ -81,11 +86,11 @@ testKeyBtn.addEventListener("click", () => {
 });
 
 toggleKeyBtn.addEventListener("click", () => {
-  if (apiKeyInput.type === "password") {
-    apiKeyInput.type = "text";
+  if (supabaseAnonKeyInput.type === "password") {
+    supabaseAnonKeyInput.type = "text";
     toggleKeyBtn.textContent = "Hide";
   } else {
-    apiKeyInput.type = "password";
+    supabaseAnonKeyInput.type = "password";
     toggleKeyBtn.textContent = "Show";
   }
 });
