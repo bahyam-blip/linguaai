@@ -15,8 +15,8 @@ android {
         applicationId = "com.linguaai.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "3.2.0"
+        versionCode = 6
+        versionName = "4.0.0"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", "\"${project.findProperty("SUPABASE_URL") ?: System.getenv("SUPABASE_URL") ?: ""}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.findProperty("SUPABASE_ANON_KEY") ?: System.getenv("SUPABASE_ANON_KEY") ?: ""}\"")
@@ -68,6 +68,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.9.0")
 }
