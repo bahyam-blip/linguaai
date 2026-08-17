@@ -5,9 +5,8 @@
 
     <!--
         MINIMUM PERMISSIONS — only INTERNET and ACCESS_NETWORK_STATE.
-        No FOREGROUND_SERVICE, no POST_NOTIFICATIONS, no SYSTEM_ALERT_WINDOW.
-        The AccessibilityService is system-managed and does not need to be
-        declared as a foreground service. This keeps Play Protect happy.
+        No SYSTEM_ALERT_WINDOW, no BIND_ACCESSIBILITY_SERVICE, no FOREGROUND_SERVICE.
+        This app installs cleanly on any device without Play Protect warnings.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -32,7 +31,6 @@
         android:theme="@style/Theme.LinguaAI"
         tools:targetApi="34">
 
-        <!-- Main activity — onboarding + standalone editor -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -43,25 +41,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
 
-        <!--
-            Accessibility Service — the core of the floating assistant.
-            Watches text fields in ANY app and shows a floating bubble
-            with grammar/vocabulary/style suggestions.
-            Uses TYPE_ACCESSIBILITY_OVERLAY so no SYSTEM_ALERT_WINDOW permission is needed.
-            No foregroundServiceType — AccessibilityService is system-managed.
-        -->
-        <service
-            android:name=".AssistantAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
+            <!-- Share-sheet integration: receive text from any app -->
             <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
+        </activity>
     </application>
 </manifest>

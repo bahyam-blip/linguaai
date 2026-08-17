@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callSarvam, extractJson } from "@/lib/sarvam";
+import ZAI from "z-ai-web-dev-sdk";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +60,34 @@ interface GrammarResponse {
 }
 
 // ----------------- Helpers ------------------
+
+/** Robustly extract JSON from a possibly-noisy LLM response. */
+function extractJson(raw: string): any | null {
+  if (!raw) return null;
+  let s = raw.trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first >= 0 && last > first) s = s.slice(first, last + 1);
+  try { return JSON.parse(s); } catch {
+    try { return JSON.parse(s.replace(/,\s*([}\]])/g, "$1").replace(/[\u0000-\u001F]+/g, " ")); } catch { return null; }
+  }
+}
+
+/** Call Z.ai LLM and return the raw text response. */
+async function callLLM(systemPrompt: string, userPrompt: string, temperature = 0.2): Promise<string> {
+  const zai = await ZAI.create();
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    thinking: { type: "disabled" },
+    temperature,
+  });
+  return completion.choices?.[0]?.message?.content ?? "";
+}
 
 /** Compute basic stats locally as a fallback when LLM stats are missing/invalid. */
 function fallbackStats(text: string): Stats {
@@ -257,12 +285,10 @@ export async function POST(req: NextRequest) {
       ? `\n\nThe user's writing goal is: ${goal}. Adapt suggestions accordingly.`
       : "";
 
-    const raw = await callSarvam(
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Analyze the following text:\n\n${text}${goalSuffix}` },
-      ],
-      { temperature: 0.2 },
+    const raw = await callLLM(
+      SYSTEM_PROMPT,
+      `Analyze the following text:\n\n${text}${goalSuffix}`,
+      0.2,
     );
 
     const parsed = extractJson(raw) || {};

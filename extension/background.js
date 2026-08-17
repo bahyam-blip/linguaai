@@ -1,22 +1,17 @@
-// LinguaAI extension v2 — background service worker
-// Handles: analyze, rewrite, compose, chat, synonyms, per-site settings, custom dictionary
+// LinguaAI extension v5 — background service worker
+// Handles: analyze, rewrite, per-site settings, custom dictionary
 
-const EDGE_FUNCTION_PATH = "/functions/v1/grammar-check";
+const DEFAULT_API_ENDPOINT = "https://preview-linguaai.space-z.ai/api/grammar";
 
-async function getSupabaseConfig() {
-  const { supabaseUrl = "", supabaseAnonKey = "" } = await chrome.storage.sync.get([
-    "supabaseUrl",
-    "supabaseAnonKey",
-  ]);
-  // Normalize URL: ensure it has https:// prefix to prevent "no protocol:" errors
-  if (supabaseUrl && !supabaseUrl.startsWith("http://") && !supabaseUrl.startsWith("https://")) {
-    supabaseUrl = "https://" + supabaseUrl;
+async function getApiConfig() {
+  const { apiEndpoint = "" } = await chrome.storage.sync.get(["apiEndpoint"]);
+  // If user has configured a custom endpoint, use it; otherwise use the default
+  const endpoint = apiEndpoint || DEFAULT_API_ENDPOINT;
+  // Normalize: ensure it has https:// prefix
+  if (endpoint && !endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
+    return "https://" + endpoint;
   }
-  // Strip trailing slash so endpoint construction doesn't double up
-  if (supabaseUrl) {
-    supabaseUrl = supabaseUrl.replace(/\/+$/, "");
-  }
-  return { supabaseUrl, supabaseAnonKey };
+  return endpoint.replace(/\/+$/, "");
 }
 
 async function getSettings() {
@@ -32,15 +27,9 @@ async function getSettings() {
     checkCapitalization: true,
     checkTone: true,
     enableAI: true,
-    enableSynonyms: true,
-    enableDefinitions: true,
-    enableLearningMode: false,
-    enableAutoCorrect: false,
     enableInlineSuggestions: true,
-    enableFloatingAssistant: true,
-    language: 'en-IN',
+    language: 'en',
     writingStyle: 'general',
-    enableSearchFields: false,
   };
   const stored = await chrome.storage.sync.get(defaults);
   return stored;
@@ -48,42 +37,19 @@ async function getSettings() {
 
 // ── Analyze text for grammar/writing issues ──
 async function analyzeText(text, mode = 'full', context = '') {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return { ok: false, error: 'Supabase is not configured. Open LinguaAI extension options to add your Supabase Project URL and anon key.' };
+  const endpoint = await getApiConfig();
+  if (!endpoint) {
+    return { ok: false, error: 'API endpoint is not configured.' };
   }
 
-  var categories = null;
-  if (mode === 'full') {
-    const settings = await getSettings();
-    const enabledTypes = [];
-    if (settings.checkGrammar) enabledTypes.push('grammar');
-    if (settings.checkSpelling) enabledTypes.push('spelling');
-    if (settings.checkPunctuation) enabledTypes.push('punctuation');
-    if (settings.checkStyle) enabledTypes.push('style');
-    if (settings.checkClarity) enabledTypes.push('clarity');
-    if (settings.checkVocabulary) enabledTypes.push('vocabulary');
-    if (settings.checkCapitalization) enabledTypes.push('capitalization');
-    if (settings.checkTone) enabledTypes.push('tone');
-    if (enabledTypes.length > 0 && enabledTypes.length < 9) {
-      categories = enabledTypes;
-    }
-  }
-
-  const endpoint = supabaseUrl + EDGE_FUNCTION_PATH;
   const body = { text, mode };
-  if (categories) body.categories = categories;
   if (context) body.context = context;
 
   let res;
   try {
     res = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseAnonKey,
-        Authorization: 'Bearer ' + supabaseAnonKey,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -92,56 +58,37 @@ async function analyzeText(text, mode = 'full', context = '') {
 
   if (!res.ok) {
     let detail = '';
-    try {
-      const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.message || errBody?.error || JSON.stringify(errBody);
-    } catch {
-      try { detail = await res.text(); } catch { detail = ''; }
-    }
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, error: 'Supabase authentication failed. Please check your Supabase Project URL and anon key in the extension options.' };
-    }
-    return { ok: false, error: 'Supabase Edge Function error ' + res.status + ': ' + detail.slice(0, 200) };
+    try { const errBody = await res.json(); detail = errBody?.error || JSON.stringify(errBody); } catch { try { detail = await res.text(); } catch {} }
+    return { ok: false, error: 'API error ' + res.status + ': ' + detail.slice(0, 200) };
   }
 
   let data;
-  try {
-    data = await res.json();
-  } catch {
-    return { ok: false, error: 'Failed to parse Supabase Edge Function response.' };
-  }
+  try { data = await res.json(); } catch { return { ok: false, error: 'Failed to parse response.' }; }
 
-  const issues = Array.isArray(data.issues)
-    ? data.issues.filter(i => i && i.original && i.suggestion)
-    : [];
+  const issues = Array.isArray(data.issues) ? data.issues.filter(i => i && i.original && i.suggestion) : [];
   const correctedText = typeof data.correctedText === 'string' ? data.correctedText : text;
   const overallScore = typeof data.overallScore === 'number' ? data.overallScore : 100;
-  const tone = data.tone || '';
-  const wordCount = data.wordCount || 0;
+  const tone = data.tone?.tone || data.tone || '';
+  const wordCount = data.stats?.wordCount || 0;
 
   return { ok: true, data: { issues, correctedText, overallScore, tone, wordCount } };
 }
 
 // ── Rewrite / transform text ──
 async function rewriteText(text, { action, instruction, targetLang, context } = {}) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return { ok: false, error: 'Supabase is not configured. Open LinguaAI extension options.' };
+  const endpoint = await getApiConfig();
+  if (!endpoint) {
+    return { ok: false, error: 'API endpoint is not configured.' };
   }
 
-  const endpoint = supabaseUrl + EDGE_FUNCTION_PATH;
-  const body = { text, action, instruction, targetLang, mode: 'rewrite' };
-  if (context) body.context = context;
+  const rewriteUrl = endpoint.replace(/\/grammar$/, '/rewrite');
+  const body = { text, action, instruction, targetLang };
 
   let res;
   try {
-    res = await fetch(endpoint, {
+    res = await fetch(rewriteUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseAnonKey,
-        Authorization: 'Bearer ' + supabaseAnonKey,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -150,129 +97,27 @@ async function rewriteText(text, { action, instruction, targetLang, context } = 
 
   if (!res.ok) {
     let detail = '';
-    try {
-      const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.message || errBody?.error || JSON.stringify(errBody);
-    } catch {
-      try { detail = await res.text(); } catch { detail = ''; }
-    }
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, error: 'Supabase authentication failed. Check your URL and anon key.' };
-    }
-    return { ok: false, error: 'Edge Function error ' + res.status + ': ' + detail.slice(0, 200) };
+    try { const errBody = await res.json(); detail = errBody?.error || JSON.stringify(errBody); } catch { try { detail = await res.text(); } catch {} }
+    return { ok: false, error: 'API error ' + res.status + ': ' + detail.slice(0, 200) };
   }
 
   let data;
-  try {
-    data = await res.json();
-  } catch {
-    return { ok: false, error: 'Failed to parse response.' };
-  }
+  try { data = await res.json(); } catch { return { ok: false, error: 'Failed to parse response.' }; }
 
   return { ok: true, data };
 }
 
-// ── Chat with AI ──
+// ── Chat with AI (uses rewrite endpoint with ai_command action) ──
 async function chatWithAI(message, context, selection) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return { ok: false, error: 'Supabase is not configured.' };
-  }
-
-  const endpoint = supabaseUrl + EDGE_FUNCTION_PATH;
-  const prompt = selection
-    ? `Selected text: "${selection}"\n\nUser question: ${message}`
-    : context
-      ? `Current text context: "${context}"\n\nUser question: ${message}`
-      : `User question: ${message}`;
-
-  const body = { text: prompt, action: 'chat', instruction: message, mode: 'rewrite' };
-
-  let res;
-  try {
-    res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseAnonKey,
-        Authorization: 'Bearer ' + supabaseAnonKey,
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    return { ok: false, error: 'Network error: ' + err.message };
-  }
-
-  if (!res.ok) {
-    let detail = '';
-    try {
-      const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.message || errBody?.error || JSON.stringify(errBody);
-    } catch {
-      try { detail = await res.text(); } catch { detail = ''; }
-    }
-    return { ok: false, error: 'Error ' + res.status + ': ' + detail.slice(0, 200) };
-  }
-
-  let data;
-  try {
-    data = await res.json();
-  } catch {
-    return { ok: false, error: 'Failed to parse response.' };
-  }
-
-  return { ok: true, data };
+  const prompt = selection ? `Selected text: "${selection}"\n\nUser question: ${message}`
+    : context ? `Current text: "${context}"\n\nUser question: ${message}`
+    : `User question: ${message}`;
+  return rewriteText(prompt, { action: 'ai_command', instruction: message });
 }
 
-// ── Synonyms / definitions ──
+// ── Synonyms (uses rewrite endpoint) ──
 async function getSynonyms(word) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return { ok: false, error: 'Supabase is not configured.' };
-  }
-
-  const endpoint = supabaseUrl + EDGE_FUNCTION_PATH;
-  const body = {
-    text: word,
-    action: 'synonyms',
-    instruction: `Provide synonyms, alternatives, and a definition for the word "${word}". Return JSON: { "definition": "...", "synonyms": ["word1", "word2", ...], "alternatives": ["formal1", "simpler1", ...] }`,
-    mode: 'rewrite',
-  };
-
-  let res;
-  try {
-    res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseAnonKey,
-        Authorization: 'Bearer ' + supabaseAnonKey,
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    return { ok: false, error: 'Network error: ' + err.message };
-  }
-
-  if (!res.ok) {
-    let detail = '';
-    try {
-      const errBody = await res.json();
-      detail = errBody?.error?.message || errBody?.message || errBody?.error || JSON.stringify(errBody);
-    } catch {
-      try { detail = await res.text(); } catch { detail = ''; }
-    }
-    return { ok: false, error: 'Error ' + res.status + ': ' + detail.slice(0, 200) };
-  }
-
-  let data;
-  try {
-    data = await res.json();
-  } catch {
-    return { ok: false, error: 'Failed to parse response.' };
-  }
-
-  return { ok: true, data };
+  return rewriteText(word, { action: 'ai_command', instruction: `Provide synonyms, alternatives, and a definition for the word "${word}". Return JSON: { "definition": "...", "synonyms": ["word1", "word2", ...] }` });
 }
 
 // ── Per-site settings ──
