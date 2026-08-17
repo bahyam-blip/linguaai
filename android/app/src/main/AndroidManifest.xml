@@ -43,17 +43,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-            <!--
-                Share-sheet integration: receive text from any app.
-                When the user selects text in WhatsApp/Gmail/etc. and taps Share → LinguaAI,
-                the text is sent to this activity for analysis.
-            -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
         </activity>
 
         <!--
