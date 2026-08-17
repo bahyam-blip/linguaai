@@ -1,970 +1,289 @@
 package com.linguaai.app
 
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.ScrollingMovementMethod
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.accessibility.AccessibilityManager
 import android.view.WindowManager
 import android.widget.*
 import androidx.activity.ComponentActivity
-import org.json.JSONObject
 
-/**
- * LinguaAI — Standalone AI Writing Assistant
- *
- * A clean, modern, Grammarly-inspired native Android editor.
- *
- * Design principles:
- *  - White background, subtle gray dividers, emerald accent
- *  - Card-based issue display with colored severity borders
- *  - 16dp rounded corners on all cards
- *  - Clear typography hierarchy (sp units)
- *  - Smooth state transitions (empty → loading → results → error)
- */
 class MainActivity : ComponentActivity() {
-
     private lateinit var api: LinguaAIApi
-    private lateinit var handler: Handler
-
+    private val handler = Handler(Looper.getMainLooper())
+    private val density by lazy { resources.displayMetrics.density }
     private lateinit var editor: EditText
-    private lateinit var resultsScroll: ScrollView
     private lateinit var resultsContainer: LinearLayout
     private lateinit var loadingBar: ProgressBar
     private lateinit var scoreRing: TextView
     private lateinit var scoreLabel: TextView
     private lateinit var statsBar: TextView
-    private lateinit var aiCommandInput: EditText
-    private lateinit var aiCommandBtn: Button
-    private lateinit var clipboardBtn: Button
-    private lateinit var pasteBtn: Button
-    private lateinit var copyBtn: Button
-    private lateinit var clearBtn: Button
-
-    private var currentText: String = ""
+    private lateinit var aiCmdInput: EditText
+    private lateinit var onboardingBox: LinearLayout
+    private lateinit var enableStatus: TextView
+    private lateinit var enableBtn: Button
+    private var currentText = ""
     private var currentAnalysis: LinguaAIApi.Analysis? = null
     private var analyzeDebounce: Runnable? = null
-    private val density by lazy { resources.displayMetrics.density }
+    private var clipMonitoring = false
+    private var clipRunnable: Runnable? = null
+    private var lastClipText = ""
 
-    // ────────────────────────── Colors ──────────────────────────
-    private val colEmerald = Color.parseColor("#10b981")
-    private val colEmeraldDark = Color.parseColor("#059669")
-    private val colEmeraldLight = Color.parseColor("#d1fae5")
-    private val colEmeraldBg = Color.parseColor("#ecfdf5")
-    private val colTeal = Color.parseColor("#0d9488")
-    private val colWhite = Color.WHITE
-    private val colBg = Color.parseColor("#ffffff")
-    private val colCardBg = Color.parseColor("#ffffff")
-    private val colDivider = Color.parseColor("#f1f5f9")
-    private val colBorder = Color.parseColor("#e2e8f0")
-    private val colTextPrimary = Color.parseColor("#0f172a")
-    private val colTextSecondary = Color.parseColor("#475569")
-    private val colTextTertiary = Color.parseColor("#94a3b8")
-    private val colCriticalBg = Color.parseColor("#fee2e2")
-    private val colCriticalText = Color.parseColor("#b91c1c")
-    private val colWarningBg = Color.parseColor("#fef3c7")
-    private val colWarningText = Color.parseColor("#92400e")
-    private val colSuggestionBg = Color.parseColor("#d1fae5")
-    private val colSuggestionText = Color.parseColor("#065f46")
-    private val colError = Color.parseColor("#ef4444")
-    private val colAmber = Color.parseColor("#f59e0b")
+    private val cEm = Color.parseColor("#10b981")
+    private val cEmD = Color.parseColor("#059669")
+    private val cEmL = Color.parseColor("#d1fae5")
+    private val cEmBg = Color.parseColor("#ecfdf5")
+    private val cW = Color.WHITE
+    private val cBg = Color.parseColor("#ffffff")
+    private val cDiv = Color.parseColor("#f1f5f9")
+    private val cBd = Color.parseColor("#e2e8f0")
+    private val cTP = Color.parseColor("#0f172a")
+    private val cTS = Color.parseColor("#475569")
+    private val cTT = Color.parseColor("#94a3b8")
+    private val cCrBg = Color.parseColor("#fee2e2")
+    private val cCrTx = Color.parseColor("#b91c1c")
+    private val cWaBg = Color.parseColor("#fef3c7")
+    private val cWaTx = Color.parseColor("#92400e")
+    private val cSuBg = Color.parseColor("#d1fae5")
+    private val cSuTx = Color.parseColor("#065f46")
+    private val cErr = Color.parseColor("#ef4444")
+    private val cAm = Color.parseColor("#f59e0b")
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onCreate(s: Bundle?) {
+        super.onCreate(s)
         api = LinguaAIApi(this)
-        handler = Handler(Looper.getMainLooper())
-
-        window.apply {
-            addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-            statusBarColor = colEmerald
-        }
-
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = cEm
         buildUI()
         handleSharedText(intent)
     }
+    override fun onNewIntent(i: Intent) { super.onNewIntent(i); handleSharedText(i) }
+    override fun onResume() { super.onResume(); updateA11yStatus() }
 
-    private fun handleSharedText(intent: Intent?) {
-        intent ?: return
-        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
-            if (sharedText.isNotEmpty()) {
-                editor.setText(sharedText)
-                currentText = sharedText
-                editor.setSelection(sharedText.length)
-                toast("Text received — analyzing...")
-                triggerAnalyze()
-            }
+    private fun handleSharedText(i: Intent?) {
+        if (i?.action == Intent.ACTION_SEND && i.type == "text/plain") {
+            val t = i.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+            if (t.isNotEmpty()) { editor.setText(t); currentText = t; editor.setSelection(t.length); toast("Analyzing..."); triggerAnalyze() }
         }
     }
-
-    // ════════════════════════════════════════════════════════════
-    //  UI BUILD
-    // ════════════════════════════════════════════════════════════
 
     private fun buildUI() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(colBg)
-            val params = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-            )
-            layoutParams = params
-        }
-
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(cBg) }
         root.addView(buildHeader())
-        root.addView(buildScoreSection())
-        root.addView(buildEditorSection())
-        root.addView(buildQuickActionsRow())
-        root.addView(buildAICommandBox())
-        root.addView(buildLoadingBar())
+        root.addView(buildOnboarding())
+        root.addView(buildScoreBar())
+        root.addView(buildEditor())
+        root.addView(buildQuickActions())
+        root.addView(buildAICmd())
+        loadingBar = ProgressBar(this).apply { visibility = View.GONE; layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)).apply { gravity = Gravity.CENTER; setMargins(0, dp(4), 0, dp(4)) } }
+        root.addView(LinearLayout(this).apply { gravity = Gravity.CENTER; addView(loadingBar) })
         root.addView(buildActionsRow())
-        root.addView(buildStatsBar())
-
-        resultsScroll = ScrollView(this)
-        resultsContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(16))
-        }
-        resultsScroll.addView(resultsContainer)
-        root.addView(resultsScroll, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f
-        ))
-
+        statsBar = TextView(this).apply { text = "0 words · 0 characters"; setTextColor(cTS); textSize = 11f; setPadding(dp(20), dp(4), dp(20), dp(4)); background = GradientDrawable().apply { setColor(cDiv) } }
+        root.addView(statsBar)
+        val scroll = ScrollView(this)
+        resultsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(16)) }
+        scroll.addView(resultsContainer)
+        root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
-        showEmptyState()
+        showEmpty()
     }
 
-    // ────────────────────── Header ──────────────────────
     private fun buildHeader(): View {
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(20), dp(16) + statusBarHeight(), dp(20), dp(16))
-            background = GradientDrawable().apply {
-                colors = intArrayOf(colEmerald, colEmeraldDark)
-                orientation = GradientDrawable.Orientation.LEFT_RIGHT
-            }
-        }
-
-        val logoBox = LinearLayout(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(colWhite)
-            }
-            val lp = LinearLayout.LayoutParams(dp(44), dp(44))
-            lp.rightMargin = dp(12)
-            layoutParams = lp
-            gravity = Gravity.CENTER
-        }
-        logoBox.addView(TextView(this).apply {
-            text = "Aa"
-            setTextColor(colEmerald)
-            textSize = 18f
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        header.addView(logoBox)
-
-        val titleBox = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        titleBox.addView(TextView(this).apply {
-            text = "LinguaAI"
-            setTextColor(colWhite)
-            textSize = 19f
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        titleBox.addView(TextView(this).apply {
-            text = "AI Writing Assistant"
-            setTextColor(Color.parseColor("#d1fae5"))
-            textSize = 12f
-        })
-        header.addView(titleBox)
-
-        return header
+        val h = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(20), dp(16) + statusH(), dp(20), dp(16)); background = GradientDrawable().apply { colors = intArrayOf(cEm, cEmD); orientation = GradientDrawable.Orientation.LEFT_RIGHT } }
+        val logo = LinearLayout(this).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(cW) }; layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply { rightMargin = dp(12) } }
+        logo.addView(TextView(this).apply { text = "Aa"; setTextColor(cEm); textSize = 18f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT) })
+        h.addView(logo)
+        val tb = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        tb.addView(TextView(this).apply { text = "LinguaAI"; setTextColor(cW); textSize = 19f; typeface = Typeface.DEFAULT_BOLD })
+        tb.addView(TextView(this).apply { text = "AI Writing Assistant"; setTextColor(cEmL); textSize = 12f })
+        h.addView(tb)
+        return h
     }
 
-    // ────────────────────── Score Section ──────────────────────
-    private fun buildScoreSection(): View {
-        val scoreBar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(16))
-            setBackgroundColor(colWhite)
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.bottomMargin = dp(1)
-            layoutParams = lp
-        }
-
-        scoreRing = TextView(this).apply {
-            text = "—"
-            setTextColor(colEmerald)
-            textSize = 22f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(colEmeraldBg)
-                setStroke(dp(3), colEmerald)
-            }
-            val lp = LinearLayout.LayoutParams(dp(56), dp(56))
-            lp.rightMargin = dp(14)
-            layoutParams = lp
-        }
-        scoreBar.addView(scoreRing)
-
-        scoreLabel = TextView(this).apply {
-            text = "Writing Score\nStart typing to analyze"
-            setTextColor(colTextPrimary)
-            textSize = 13f
-            setLineSpacing(2f, 1f)
-        }
-        scoreBar.addView(scoreLabel)
-        return scoreBar
+    private fun buildOnboarding(): View {
+        onboardingBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(16)); visibility = View.GONE; background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(cEmBg); setStroke(dp(1), cEmL) }; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(dp(16), dp(12), dp(16), dp(4)) } }
+        onboardingBox.addView(TextView(this).apply { text = "Enable Floating Assistant"; setTextColor(cEmD); textSize = 15f; typeface = Typeface.DEFAULT_BOLD })
+        onboardingBox.addView(TextView(this).apply { text = "Turn on the accessibility service to get real-time grammar, vocabulary, and style suggestions as you type in any app — WhatsApp, Gmail, anywhere. A floating bubble will appear when you're writing."; setTextColor(cTS); textSize = 12f; setLineSpacing(2f, 1f); setPadding(0, dp(6), 0, dp(12)) })
+        enableStatus = TextView(this).apply { text = "⚠ Not enabled yet"; setTextColor(cWaTx); textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setPadding(0, 0, 0, dp(8)) }
+        onboardingBox.addView(enableStatus)
+        enableBtn = Button(this).apply { text = "Open Accessibility Settings"; setBackgroundColor(cEm); setTextColor(cW); textSize = 13f; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT); setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } }
+        onboardingBox.addView(enableBtn)
+        return onboardingBox
     }
 
-    // ────────────────────── Editor Section ──────────────────────
-    private fun buildEditorSection(): View {
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(12), dp(20), dp(8))
-        }
+    private fun buildScoreBar(): View {
+        val sb = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(20), dp(16), dp(20), dp(16)); setBackgroundColor(cW) }
+        scoreRing = TextView(this).apply { text = "—"; setTextColor(cEm); textSize = 22f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(cEmBg); setStroke(dp(3), cEm) }; layoutParams = LinearLayout.LayoutParams(dp(56), dp(56)).apply { rightMargin = dp(14) } }
+        sb.addView(scoreRing)
+        scoreLabel = TextView(this).apply { text = "Writing Score\nStart typing to analyze"; setTextColor(cTP); textSize = 13f; setLineSpacing(2f, 1f) }
+        sb.addView(scoreLabel)
+        return sb
+    }
 
-        val label = TextView(this).apply {
-            text = "  EDITOR"
-            setTextColor(colTextTertiary)
-            textSize = 11f
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, dp(6))
-        }
-        container.addView(label)
-
+    private fun buildEditor(): View {
+        val c = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(12), dp(20), dp(8)) }
+        c.addView(TextView(this).apply { text = "  EDITOR"; setTextColor(cTT); textSize = 11f; setPadding(0, 0, 0, dp(6)) })
         editor = EditText(this).apply {
-            hint = "Type or paste text to check grammar, spelling, vocabulary, tone, and style...\n\nTip: In any app, select text → Share → LinguaAI to analyze it here."
-            setHintTextColor(colTextTertiary)
-            setTextColor(colTextPrimary)
-            textSize = 15f
-            setLineSpacing(4f, 1f)
-            background = GradientDrawable().apply {
-                cornerRadius = dp(16f)
-                setColor(colWhite)
-                setStroke(dp(1), colBorder)
-            }
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-            lp.bottomMargin = dp(8)
-            layoutParams = lp
-            gravity = Gravity.TOP
-            isVerticalScrollBarEnabled = true
-            movementMethod = ScrollingMovementMethod()
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: Editable?) {
-                    currentText = s?.toString() ?: ""
-                    updateStats()
-                    scheduleAnalyze()
-                }
-            })
+            hint = "Type or paste text to check grammar, spelling, vocabulary, tone, and style..."; setHintTextColor(cTT); setTextColor(cTP); textSize = 15f; setLineSpacing(4f, 1f)
+            background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(cW); setStroke(dp(1), cBd) }; setPadding(dp(16), dp(16), dp(16), dp(16)); isVerticalScrollBarEnabled = true; movementMethod = ScrollingMovementMethod.getInstance()
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(180)).apply { bottomMargin = dp(8) }
+            addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {} override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {} override fun afterTextChanged(s: Editable?) { currentText = s?.toString() ?: ""; updateStats(); scheduleAnalyze() } })
         }
-        container.addView(editor)
-        return container
+        c.addView(editor)
+        return c
     }
 
-    // ────────────────────── Quick Actions Row ──────────────────────
-    private fun buildQuickActionsRow(): View {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(16), dp(4), dp(16), dp(8))
+    private fun buildQuickActions(): View {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(16), dp(4), dp(16), dp(8)) }
+        for ((label, action) in listOf("Paste" to { pasteFromClipboard() }, "Auto-clipboard" to { toggleClipMonitor() }, "Copy" to { copyToClipboard() }, "Clear" to { clearEditor() })) {
+            row.addView(Button(this).apply { text = label; background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(cDiv) }; setTextColor(cTS); textSize = 11f; setOnClickListener { action() } }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
         }
-        pasteBtn = makeSmallButton("Paste") { pasteFromClipboard() }
-        row.addView(pasteBtn, buttonParams())
-        clipboardBtn = makeSmallButton("Auto-check clipboard") { toggleClipboardMonitor() }
-        row.addView(clipboardBtn, buttonParams())
-        copyBtn = makeSmallButton("Copy") { copyToClipboard() }
-        row.addView(copyBtn, buttonParams())
-        clearBtn = makeSmallButton("Clear") { clearEditor() }
-        row.addView(clearBtn, buttonParams())
         return row
     }
 
-    // ────────────────────── AI Command Box ──────────────────────
-    private fun buildAICommandBox(): View {
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(20), dp(4), dp(20), dp(8))
-        }
-        aiCommandInput = EditText(this).apply {
-            hint = "Ask AI: make professional, shorten, translate..."
-            setHintTextColor(colTextTertiary)
-            setTextColor(colTextPrimary)
-            textSize = 13f
-            background = GradientDrawable().apply {
-                cornerRadius = dp(12f)
-                setColor(colWhite)
-                setStroke(dp(1), colBorder)
-            }
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            val lp = LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-            lp.weight = 1f
-            lp.rightMargin = dp(8)
-            layoutParams = lp
-        }
-        box.addView(aiCommandInput)
-
-        aiCommandBtn = Button(this).apply {
-            text = "→"
-            setBackgroundColor(colEmerald)
-            setTextColor(colWhite)
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-            val lp = LinearLayout.LayoutParams(dp(44), dp(44))
-            layoutParams = lp
-            setOnClickListener {
-                val cmd = aiCommandInput.text.toString().trim()
-                if (cmd.isNotEmpty()) {
-                    doRewrite("ai_command", instruction = cmd)
-                    aiCommandInput.setText("")
-                }
-            }
-        }
-        box.addView(aiCommandBtn)
+    private fun buildAICmd(): View {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(20), dp(4), dp(20), dp(8)); gravity = Gravity.CENTER_VERTICAL }
+        aiCmdInput = EditText(this).apply { hint = "Ask AI: make professional, shorter, translate..."; setHintTextColor(cTT); setTextColor(cTP); textSize = 13f; background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(cW); setStroke(dp(1), cBd) }; setPadding(dp(12), dp(10), dp(12), dp(10)); layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(8) } }
+        box.addView(aiCmdInput)
+        box.addView(Button(this).apply { text = "→"; setBackgroundColor(cEm); setTextColor(cW); textSize = 16f; layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)); setOnClickListener { val cmd = aiCmdInput.text.toString().trim(); if (cmd.isNotEmpty()) { doRewrite("ai_command", instruction = cmd); aiCmdInput.setText("") } } })
         return box
     }
 
-    // ────────────────────── Loading Bar ──────────────────────
-    private fun buildLoadingBar(): View {
-        loadingBar = ProgressBar(this).apply {
-            visibility = View.GONE
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(4)
-            )
-            layoutParams = lp
-        }
-        return loadingBar
-    }
-
-    // ────────────────────── Action Buttons Row ──────────────────────
     private fun buildActionsRow(): View {
-        val actionScroll = HorizontalScrollView(this)
-        val actionRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
+        val scroll = HorizontalScrollView(this)
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(16), dp(8), dp(16), dp(8)) }
+        for ((label, action) in listOf("Improve" to "improve", "Shorten" to "shorten", "Expand" to "expand", "Simplify" to "simplify", "Professional" to "professional", "Casual" to "casual", "Confident" to "confident", "Friendly" to "friendly", "Concise" to "concise", "Formal" to "formal")) {
+            row.addView(TextView(this).apply { text = label; setTextColor(cSuTx); textSize = 12f; background = GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(cEmBg); setStroke(dp(1), cEm) }; setPadding(dp(14), dp(9), dp(14), dp(9)); layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) }; setOnClickListener { doRewrite(action) } })
         }
-        val actions = listOf(
-            "Improve" to "improve",
-            "Shorten" to "shorten",
-            "Expand" to "expand",
-            "Simplify" to "simplify",
-            "Professional" to "professional",
-            "Casual" to "casual",
-            "Confident" to "confident",
-            "Friendly" to "friendly",
-            "Concise" to "concise",
-            "Formal" to "formal"
-        )
-        for ((label, action) in actions) {
-            val btn = TextView(this).apply {
-                text = label
-                setTextColor(colSuggestionText)
-                textSize = 12f
-                typeface = Typeface.DEFAULT_BOLD
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(20f)
-                    setColor(colEmeraldBg)
-                    setStroke(dp(1), colEmerald)
-                }
-                setPadding(dp(14), dp(9), dp(14), dp(9))
-                val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                lp.rightMargin = dp(8)
-                layoutParams = lp
-                setOnClickListener { doRewrite(action) }
-            }
-            actionRow.addView(btn)
-        }
-        actionScroll.addView(actionRow)
-        return actionScroll
+        scroll.addView(row)
+        return scroll
     }
 
-    // ────────────────────── Stats Bar ──────────────────────
-    private fun buildStatsBar(): View {
-        statsBar = TextView(this).apply {
-            text = "0 words • 0 characters"
-            setTextColor(colTextSecondary)
-            textSize = 11f
-            setPadding(dp(20), dp(4), dp(20), dp(4))
-            background = GradientDrawable().apply {
-                setColor(colDivider)
-            }
-        }
-        return statsBar
+    private fun updateA11yStatus() {
+        val enabled = isA11yEnabled()
+        if (enabled) { onboardingBox.visibility = View.GONE }
+        else { onboardingBox.visibility = View.VISIBLE; enableStatus.text = "⚠ Not enabled yet — tap below to turn on"; enableStatus.setTextColor(cWaTx); enableBtn.text = "Open Accessibility Settings" }
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  ANALYSIS
-    // ════════════════════════════════════════════════════════════
+    private fun isA11yEnabled(): Boolean {
+        val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val services = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
+        val expected = ComponentName(this, AssistantAccessibilityService::class.java).flattenToString()
+        for (s in services) { val i = s.resolveInfo.serviceInfo; if (ComponentName(i.packageName, i.name).flattenToString() == expected) return true }
+        return false
+    }
 
     private fun scheduleAnalyze() {
         analyzeDebounce?.let { handler.removeCallbacks(it) }
-        val r = Runnable {
-            if (currentText.trim().length >= 3) {
-                triggerAnalyze()
-            }
-        }
+        val r = Runnable { if (currentText.trim().length >= 3) triggerAnalyze() }
         analyzeDebounce = r
         handler.postDelayed(r, 1500)
     }
 
     private fun triggerAnalyze() {
-        if (currentText.trim().isEmpty()) {
-            showEmptyState()
-            return
-        }
+        if (currentText.trim().isEmpty()) { showEmpty(); return }
         loadingBar.visibility = View.VISIBLE
         resultsContainer.removeAllViews()
-        resultsContainer.addView(makeLoadingView())
+        resultsContainer.addView(LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0, dp(24), 0, dp(24)); addView(ProgressBar(this@MainActivity).apply { layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)).apply { bottomMargin = dp(8) } }); addView(TextView(this@MainActivity).apply { text = "Analyzing your text..."; setTextColor(cTS); textSize = 13f }) })
         api.analyze(currentText, "general", object : LinguaAIApi.Callback<LinguaAIApi.Analysis> {
-            override fun onSuccess(result: LinguaAIApi.Analysis) {
-                loadingBar.visibility = View.GONE
-                currentAnalysis = result
-                renderResults(result)
-                updateScoreRing(result.overallScore, result.issues.size)
-            }
-            override fun onError(message: String) {
-                loadingBar.visibility = View.GONE
-                renderError(message)
-            }
+            override fun onSuccess(r: LinguaAIApi.Analysis) { loadingBar.visibility = View.GONE; currentAnalysis = r; renderResults(r); updateScoreRing(r.overallScore, r.issues.size) }
+            override fun onError(m: String) { loadingBar.visibility = View.GONE; resultsContainer.removeAllViews(); resultsContainer.addView(TextView(this@MainActivity).apply { text = "⚠ Analysis failed: $m\n\nCheck your internet connection and try again."; setTextColor(cErr); textSize = 12f; setPadding(0, dp(16), 0, dp(16)) }) }
         })
     }
-
-    // ════════════════════════════════════════════════════════════
-    //  RENDER RESULTS
-    // ════════════════════════════════════════════════════════════
 
     private fun renderResults(a: LinguaAIApi.Analysis) {
         resultsContainer.removeAllViews()
-
-        // Summary header card
-        val summaryCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(16f)
-                if (a.issues.isEmpty()) {
-                    setColor(colEmeraldBg)
-                    setStroke(dp(1), colEmerald)
-                } else {
-                    setColor(Color.parseColor("#f8fafc"))
-                    setStroke(dp(1), colBorder)
-                }
-            }
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.bottomMargin = dp(12)
-            layoutParams = lp
-        }
-
-        val summaryText = if (a.issues.isEmpty()) {
-            "✓ All clear! No issues found."
-        } else {
-            "${a.issues.size} issue${if (a.issues.size > 1) "s" else ""} found  •  Tone: ${a.tone}  •  Words: ${a.wordCount}"
-        }
-        summaryCard.addView(TextView(this).apply {
-            text = summaryText
-            setTextColor(if (a.issues.isEmpty()) colEmerald else colTextPrimary)
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-        })
-
+        val summary = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); if (a.issues.isEmpty()) { setColor(cEmBg); setStroke(dp(1), cEm) } else { setColor(Color.parseColor("#f8fafc")); setStroke(dp(1), cBd) } }; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) } }
+        summary.addView(TextView(this).apply { text = if (a.issues.isEmpty()) "✓ All clear! No issues found." else "${a.issues.size} issue${if (a.issues.size > 1) "s" else ""} found  ·  Tone: ${a.tone}  ·  Words: ${a.wordCount}"; setTextColor(if (a.issues.isEmpty()) cEm else cTP); textSize = 14f })
         if (a.issues.isNotEmpty()) {
-            // Accept all button
-            val acceptAllBtn = TextView(this).apply {
-                text = "Accept all fixes"
-                setTextColor(colWhite)
-                textSize = 12f
-                typeface = Typeface.DEFAULT_BOLD
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(10f)
-                    setColor(colEmerald)
-                }
-                setPadding(dp(14), dp(8), dp(14), dp(8))
-                val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                lp.topMargin = dp(10)
-                layoutParams = lp
-                setOnClickListener {
-                    if (a.correctedText.isNotEmpty()) {
-                        editor.setText(a.correctedText)
-                        currentText = a.correctedText
-                        editor.setSelection(a.correctedText.length)
-                        toast("All fixes applied")
-                        scheduleAnalyze()
-                    }
-                }
-            }
-            summaryCard.addView(acceptAllBtn)
+            summary.addView(TextView(this).apply { text = "Accept all fixes"; setTextColor(cW); textSize = 12f; gravity = Gravity.CENTER; background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(cEm) }; setPadding(dp(14), dp(8), dp(14), dp(8)); setOnClickListener { if (a.correctedText.isNotEmpty()) { editor.setText(a.correctedText); currentText = a.correctedText; editor.setSelection(a.correctedText.length); toast("All fixes applied"); scheduleAnalyze() } } }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
         }
-        resultsContainer.addView(summaryCard)
-
-        // Issue cards
-        for ((idx, issue) in a.issues.withIndex()) {
-            resultsContainer.addView(buildIssueCard(issue, idx, a))
+        resultsContainer.addView(summary)
+        for (issue in a.issues) {
+            val sevC = when (issue.severity) { "critical" -> cCrTx; "warning" -> cWaTx; else -> cSuTx }
+            val sevB = when (issue.severity) { "critical" -> cCrBg; "warning" -> cWaBg; else -> cSuBg }
+            val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(14)); background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(cBg); setStroke(dp(1), cBd) }; elevation = dp(2).toFloat(); layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10) } }
+            val br = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            br.addView(TextView(this).apply { text = "  ${issue.type.uppercase()}  "; setTextColor(sevC); textSize = 10f; typeface = Typeface.DEFAULT_BOLD; background = GradientDrawable().apply { cornerRadius = dp(6).toFloat(); setColor(sevB) }; setPadding(dp(2), dp(2), dp(2), dp(2)) })
+            br.addView(TextView(this).apply { text = "  ${issue.severity}"; setTextColor(cTT); textSize = 10f })
+            card.addView(br)
+            card.addView(TextView(this).apply { text = "${issue.original}  →  ${issue.suggestion}"; setTextColor(cTP); textSize = 14f; setLineSpacing(2f, 1f); setPadding(0, dp(8), 0, dp(4)) })
+            if (issue.explanation.isNotBlank()) card.addView(TextView(this).apply { text = issue.explanation; setTextColor(cTS); textSize = 12f; setLineSpacing(1f, 1f); setPadding(0, 0, 0, dp(8)) })
+            val btnRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            btnRow.addView(Button(this).apply { text = "Replace"; background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(cEm) }; setTextColor(cW); textSize = 11f; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) }; setOnClickListener { val n = currentText.replaceFirst(issue.original, issue.suggestion, ignoreCase = false); editor.setText(n); val p = n.indexOf(issue.suggestion); editor.setSelection(if (p >= 0) p + issue.suggestion.length else n.length); currentText = n; toast("Replaced"); scheduleAnalyze() } })
+            btnRow.addView(Button(this).apply { text = "Copy fix"; background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(cDiv) }; setTextColor(cTS); textSize = 11f; setOnClickListener { val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager; cm.setPrimaryClip(ClipData.newPlainText("LinguaAI", issue.suggestion)); toast("Copied: ${issue.suggestion}") } })
+            card.addView(btnRow)
+            resultsContainer.addView(card)
         }
     }
-
-    private fun buildIssueCard(issue: LinguaAIApi.Issue, idx: Int, a: LinguaAIApi.Analysis): View {
-        val sevColor = when (issue.severity) {
-            "critical" -> colCriticalText
-            "warning" -> colWarningText
-            else -> colSuggestionText
-        }
-        val sevBg = when (issue.severity) {
-            "critical" -> colCriticalBg
-            "warning" -> colWarningBg
-            else -> colSuggestionBg
-        }
-
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(16f)
-                setColor(colCardBg)
-                setStroke(dp(1), colBorder)
-            }
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.bottomMargin = dp(10)
-            layoutParams = lp
-            elevation = dp(2f)
-        }
-
-        // Badge row
-        val badgeRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val badge = TextView(this).apply {
-            text = "  ${issue.type.uppercase()}  "
-            setTextColor(sevColor)
-            textSize = 10f
-            typeface = Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply {
-                cornerRadius = dp(6f)
-                setColor(sevBg)
-            }
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.rightMargin = dp(8)
-            layoutParams = lp
-        }
-        badgeRow.addView(badge)
-
-        val sevLabel = TextView(this).apply {
-            text = issue.severity
-            setTextColor(colTextTertiary)
-            textSize = 10f
-        }
-        badgeRow.addView(sevLabel)
-        card.addView(badgeRow)
-
-        // Fix display
-        val fix = TextView(this).apply {
-            text = "${issue.original}  →  ${issue.suggestion}"
-            setTextColor(colTextPrimary)
-            textSize = 14f
-            setLineSpacing(2f, 1f)
-            setPadding(0, dp(8), 0, dp(4))
-        }
-        card.addView(fix)
-
-        // Explanation
-        if (issue.explanation.isNotEmpty()) {
-            val explain = TextView(this).apply {
-                text = issue.explanation
-                setTextColor(colTextSecondary)
-                textSize = 12f
-                setLineSpacing(1f, 1f)
-                setPadding(0, 0, 0, dp(4))
-            }
-            card.addView(explain)
-        }
-
-        // Button row
-        val btnRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-        val replaceBtn = Button(this).apply {
-            text = "Replace"
-            background = GradientDrawable().apply {
-                cornerRadius = dp(10f)
-                setColor(colEmerald)
-            }
-            setTextColor(colWhite)
-            textSize = 11f
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.rightMargin = dp(8)
-            layoutParams = lp
-            setOnClickListener {
-                val pos = currentText.indexOf(issue.original)
-                val newText = currentText.replaceFirst(issue.original, issue.suggestion, ignoreCase = false)
-                editor.setText(newText)
-                val cursorPos = if (pos >= 0) pos + issue.suggestion.length else newText.length
-                editor.setSelection(minOf(cursorPos, newText.length))
-                currentText = newText
-                toast("Replaced")
-                scheduleAnalyze()
-            }
-        }
-        btnRow.addView(replaceBtn)
-
-        val copyFixBtn = Button(this).apply {
-            text = "Copy fix"
-            background = GradientDrawable().apply {
-                cornerRadius = dp(10f)
-                setColor(colDivider)
-            }
-            setTextColor(colTextSecondary)
-            textSize = 11f
-            setOnClickListener {
-                val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("LinguaAI", issue.suggestion))
-                toast("Copied: ${issue.suggestion}")
-            }
-        }
-        btnRow.addView(copyFixBtn)
-        card.addView(btnRow)
-
-        return card
-    }
-
-    private fun makeSectionLabel(text: String): TextView {
-        return TextView(this).apply {
-            this.text = text
-            setTextColor(colTextSecondary)
-            textSize = 11f
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, dp(16), 0, dp(8))
-        }
-    }
-
-    private fun makeSmallButton(label: String, onClick: () -> Unit): Button {
-        return Button(this).apply {
-            text = label
-            background = GradientDrawable().apply {
-                cornerRadius = dp(10f)
-                setColor(colDivider)
-            }
-            setTextColor(colTextSecondary)
-            textSize = 11f
-            setOnClickListener { onClick() }
-        }
-    }
-
-    private fun buttonParams(): LinearLayout.LayoutParams {
-        val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        lp.weight = 1f
-        lp.rightMargin = dp(4)
-        return lp
-    }
-
-    private fun makeLoadingView(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(0, dp(24), 0, dp(24))
-            addView(ProgressBar(this@MainActivity).apply {
-                val lp = LinearLayout.LayoutParams(dp(32), dp(32))
-                lp.bottomMargin = dp(8)
-                layoutParams = lp
-            })
-            addView(TextView(this@MainActivity).apply {
-                text = "Analyzing your text..."
-                setTextColor(colTextSecondary)
-                textSize = 13f
-            })
-        }
-    }
-
-    private fun showEmptyState() {
-        resultsContainer.removeAllViews()
-        resultsContainer.addView(TextView(this).apply {
-            text = "✓\nStart typing to see grammar suggestions.\n\nTip: In any app, select text → Share → LinguaAI to analyze it here."
-            setTextColor(colTextTertiary)
-            textSize = 12f
-            gravity = Gravity.CENTER
-            setPadding(dp(24), dp(24), dp(24), dp(24))
-            setLineSpacing(4f, 1f)
-        })
-        scoreRing.text = "—"
-        scoreLabel.text = "Writing Score\nStart typing to analyze"
-    }
-
-    private fun renderError(msg: String) {
-        resultsContainer.removeAllViews()
-        resultsContainer.addView(TextView(this).apply {
-            text = "⚠ Analysis failed: $msg\n\nCheck your internet connection and try again."
-            setTextColor(colError)
-            textSize = 12f
-            setPadding(0, dp(16), 0, dp(16))
-        })
-    }
-
-    private fun updateScoreRing(score: Int, issueCount: Int) {
-        scoreRing.text = score.toString()
-        val color = when {
-            score >= 80 -> colEmerald
-            score >= 60 -> colAmber
-            else -> colError
-        }
-        scoreRing.setTextColor(color)
-        (scoreRing.background as? GradientDrawable)?.setStroke(dp(3), color)
-        scoreLabel.text = "Writing Score\n$issueCount issues found  •  ${currentAnalysis?.tone ?: "—"}"
-    }
-
-    private fun updateStats() {
-        val words = if (currentText.trim().isEmpty()) 0 else currentText.trim().split(Regex("\\s+")).size
-        statsBar.text = "$words words • ${currentText.length} characters"
-    }
-
-    // ════════════════════════════════════════════════════════════
-    //  AI REWRITE
-    // ════════════════════════════════════════════════════════════
 
     private fun doRewrite(action: String, instruction: String? = null, targetLang: String? = null) {
-        if (currentText.isBlank()) {
-            toast("Type some text first")
-            return
-        }
+        if (currentText.isBlank()) { toast("Type some text first"); return }
         loadingBar.visibility = View.VISIBLE
         api.rewrite(currentText, action, instruction, targetLang, "general", object : LinguaAIApi.Callback<LinguaAIApi.RewriteResult> {
-            override fun onSuccess(result: LinguaAIApi.RewriteResult) {
-                loadingBar.visibility = View.GONE
-                showRewriteResult(result.result)
-            }
-            override fun onError(message: String) {
-                loadingBar.visibility = View.GONE
-                toast("Rewrite failed: $message")
-            }
+            override fun onSuccess(r: LinguaAIApi.RewriteResult) { loadingBar.visibility = View.GONE; showRewriteResult(r.result) }
+            override fun onError(m: String) { loadingBar.visibility = View.GONE; toast("Rewrite failed: $m") }
         })
     }
 
     private fun showRewriteResult(result: String) {
         resultsContainer.removeAllViews()
-
-        val titleLabel = TextView(this).apply {
-            text = "AI Rewrite Result"
-            setTextColor(colSuggestionText)
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 0, 0, dp(8))
-        }
-        resultsContainer.addView(titleLabel)
-
-        val resultView = TextView(this).apply {
-            text = result
-            setTextColor(colTextPrimary)
-            textSize = 14f
-            setLineSpacing(4f, 1f)
-            background = GradientDrawable().apply {
-                cornerRadius = dp(12f)
-                setColor(colEmeraldBg)
-                setStroke(dp(1), colEmerald)
-            }
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-        }
-        resultsContainer.addView(resultView)
-
-        val btnRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(12), 0, 0)
-        }
-        val replaceBtn = Button(this).apply {
-            text = "Use this"
-            background = GradientDrawable().apply {
-                cornerRadius = dp(10f)
-                setColor(colEmerald)
-            }
-            setTextColor(colWhite)
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.rightMargin = dp(8)
-            layoutParams = lp
-            setOnClickListener {
-                editor.setText(result)
-                editor.setSelection(result.length)
-                currentText = result
-                toast("Replaced with AI rewrite")
-                scheduleAnalyze()
-            }
-        }
-        btnRow.addView(replaceBtn)
-
-        val copyBtn = Button(this).apply {
-            text = "Copy"
-            background = GradientDrawable().apply {
-                cornerRadius = dp(10f)
-                setColor(colDivider)
-            }
-            setTextColor(colTextSecondary)
-            setOnClickListener {
-                val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("LinguaAI", result))
-                toast("Copied")
-            }
-        }
-        btnRow.addView(copyBtn)
-        resultsContainer.addView(btnRow)
+        resultsContainer.addView(TextView(this).apply { text = "AI Rewrite Result"; setTextColor(cSuTx); textSize = 14f; setPadding(0, 0, 0, dp(8)) })
+        resultsContainer.addView(TextView(this).apply { text = result; setTextColor(cTP); textSize = 14f; setLineSpacing(4f, 1f); background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(cEmBg); setStroke(dp(1), cEm) }; setPadding(dp(16), dp(16), dp(16), dp(16)) })
+        val br = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(12), 0, 0) }
+        br.addView(Button(this).apply { text = "Use this"; background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(cEm) }; setTextColor(cW); textSize = 11f; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8) }; setOnClickListener { editor.setText(result); editor.setSelection(result.length); currentText = result; toast("Replaced with AI rewrite"); scheduleAnalyze() } })
+        br.addView(Button(this).apply { text = "Copy"; background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(cDiv) }; setTextColor(cTS); textSize = 11f; setOnClickListener { val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager; cm.setPrimaryClip(ClipData.newPlainText("LinguaAI", result)); toast("Copied") } })
+        resultsContainer.addView(br)
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  CLIPBOARD
-    // ════════════════════════════════════════════════════════════
-
-    private var clipboardMonitoring = false
-    private var clipboardCheckRunnable: Runnable? = null
-
-    private fun toggleClipboardMonitor() {
-        if (clipboardMonitoring) {
-            clipboardMonitoring = false
-            clipboardCheckRunnable?.let { handler.removeCallbacks(it) }
-            clipboardBtn.text = "Auto-check clipboard"
-            toast("Clipboard monitoring off")
-        } else {
-            clipboardMonitoring = true
-            clipboardBtn.text = "Stop clipboard monitor"
-            toast("Clipboard monitoring on — copy text from any app to analyze it here")
-            startClipboardMonitor()
-        }
+    private fun toggleClipMonitor() {
+        if (clipMonitoring) { clipMonitoring = false; clipRunnable?.let { handler.removeCallbacks(it) }; toast("Clipboard monitoring off") }
+        else { clipMonitoring = true; toast("Clipboard monitoring on — copy text from any app to analyze it here"); val r = object : Runnable { override fun run() { if (!clipMonitoring) return; checkClipboard(); handler.postDelayed(this, 2000) } }; clipRunnable = r; handler.post(r) }
     }
 
-    private fun startClipboardMonitor() {
-        val r = object : Runnable {
-            override fun run() {
-                if (!clipboardMonitoring) return
-                checkClipboard()
-                handler.postDelayed(this, 2000)
-            }
-        }
-        clipboardCheckRunnable = r
-        handler.post(r)
-    }
-
-    private var lastClipboardText: String = ""
     private fun checkClipboard() {
-        try {
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = cm.primaryClip ?: return
-            if (clip.itemCount == 0) return
-            val text = clip.getItemAt(0).text?.toString() ?: return
-            if (text == lastClipboardText || text == currentText) return
-            if (text.length < 3 || text.length > 10000) return
-            lastClipboardText = text
-            editor.setText(text)
-            currentText = text
-            editor.setSelection(text.length)
-            toast("Clipboard text loaded — analyzing...")
-            triggerAnalyze()
-        } catch (_: Exception) {}
+        try { val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager; val clip = cm.primaryClip ?: return; if (clip.itemCount == 0) return; val t = clip.getItemAt(0).text?.toString() ?: return; if (t == lastClipText || t == currentText || t.length < 3 || t.length > 10000) return; lastClipText = t; editor.setText(t); currentText = t; editor.setSelection(t.length); toast("Clipboard text loaded — analyzing..."); triggerAnalyze() } catch (_: Exception) {}
     }
 
     private fun pasteFromClipboard() {
-        try {
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = cm.primaryClip ?: return
-            if (clip.itemCount == 0) {
-                toast("Clipboard is empty")
-                return
-            }
-            val text = clip.getItemAt(0).text?.toString() ?: ""
-            if (text.isNotEmpty()) {
-                editor.setText(text)
-                currentText = text
-                editor.setSelection(text.length)
-                toast("Pasted — analyzing...")
-                triggerAnalyze()
-            }
-        } catch (e: Exception) {
-            toast("Could not read clipboard")
-        }
+        try { val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager; val clip = cm.primaryClip ?: return; if (clip.itemCount == 0) { toast("Clipboard is empty"); return }; val t = clip.getItemAt(0).text?.toString() ?: ""; if (t.isNotEmpty()) { editor.setText(t); currentText = t; editor.setSelection(t.length); toast("Pasted — analyzing..."); triggerAnalyze() } } catch (e: Exception) { toast("Could not read clipboard") }
     }
 
-    private fun copyToClipboard() {
-        if (currentText.isBlank()) {
-            toast("Nothing to copy")
-            return
-        }
-        val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(android.content.ClipData.newPlainText("LinguaAI", currentText))
-        toast("Copied to clipboard")
+    private fun copyToClipboard() { if (currentText.isBlank()) { toast("Nothing to copy"); return }; val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager; cm.setPrimaryClip(ClipData.newPlainText("LinguaAI", currentText)); toast("Copied to clipboard") }
+    private fun clearEditor() { editor.setText(""); currentText = ""; currentAnalysis = null; showEmpty(); updateStats() }
+
+    private fun showEmpty() {
+        resultsContainer.removeAllViews()
+        resultsContainer.addView(TextView(this).apply { text = "✓\nStart typing to see grammar suggestions.\n\nTip: Enable the floating assistant to get suggestions in any app."; setTextColor(cTT); textSize = 12f; gravity = Gravity.CENTER; setPadding(dp(24), dp(24), dp(24), dp(24)); setLineSpacing(4f, 1f) })
+        scoreRing.text = "—"; scoreLabel.text = "Writing Score\nStart typing to analyze"
     }
 
-    private fun clearEditor() {
-        editor.setText("")
-        currentText = ""
-        currentAnalysis = null
-        showEmptyState()
-        updateStats()
+    private fun updateScoreRing(score: Int, count: Int) {
+        scoreRing.text = score.toString()
+        val color = when { score >= 80 -> cEm; score >= 60 -> cAm; else -> cErr }
+        scoreRing.setTextColor(color); (scoreRing.background as? GradientDrawable)?.setStroke(dp(3), color)
+        scoreLabel.text = "Writing Score\n$count issue${if (count > 1) "s" else ""} found  ·  ${currentAnalysis?.tone ?: "—"}"
     }
 
-    // ════════════════════════════════════════════════════════════
-    //  UTILS
-    // ════════════════════════════════════════════════════════════
-
+    private fun updateStats() { val w = if (currentText.trim().isEmpty()) 0 else currentText.trim().split(Regex("\\s+")).size; statsBar.text = "$w words · ${currentText.length} characters" }
     private fun dp(v: Int): Int = (v * density).toInt()
-    private fun dp(v: Float): Float = v * density
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    private fun toast(m: String) = Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
+    private fun statusH(): Int { val r = resources.getIdentifier("status_bar_height", "dimen", "android"); return if (r > 0) resources.getDimensionPixelSize(r) else 0 }
 
-    private fun statusBarHeight(): Int {
-        val res = resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (res > 0) resources.getDimensionPixelSize(res) else 0
-    }
-
-    override fun onDestroy() {
-        clipboardCheckRunnable?.let { handler.removeCallbacks(it) }
-        super.onDestroy()
-    }
+    override fun onDestroy() { super.onDestroy(); clipRunnable?.let { handler.removeCallbacks(it) }; analyzeDebounce?.let { handler.removeCallbacks(it) } }
 }
