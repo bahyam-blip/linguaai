@@ -1,3 +1,5 @@
+// LinguaAI popup — main interaction logic
+
 const editor = document.getElementById("editor");
 const analyzeBtn = document.getElementById("analyzeBtn");
 const resultsEl = document.getElementById("results");
@@ -7,6 +9,7 @@ const statusText = document.getElementById("statusText");
 const settingsBtn = document.getElementById("settingsBtn");
 const optionsLink = document.getElementById("optionsLink");
 
+// --- Check API key status on open ---
 async function checkStatus() {
   const { linguaaiApiKey = "" } = await chrome.storage.sync.get("linguaaiApiKey");
   if (!linguaaiApiKey) {
@@ -21,36 +24,67 @@ async function checkStatus() {
   return true;
 }
 
+// --- Escape HTML ---
 function escapeHtml(str) {
   if (str == null) return "";
-  return String(str).replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">").replace(/"/g, """).replace(/'/g, "&#039;");
+  return String(str)
+    .replace(/&/g, "\u0026amp;")
+    .replace(/</g, "\u0026lt;")
+    .replace(/>/g, "\u0026gt;")
+    .replace(/"/g, "\u0026quot;")
+    .replace(/'/g, "\u0026#039;");
 }
 
+// --- Analyze ---
 function analyze() {
   const text = editor.value.trim();
   if (!text) return;
-  resultsEl.innerHTML = '<div class="result-loading"><div class="spinner"></div>Analyzing your text…</div>';
+
+  resultsEl.innerHTML =
+    '<div class="result-loading"><div class="spinner"></div>Analyzing your text…</div>';
   analyzeBtn.disabled = true;
-  chrome.runtime.sendMessage({ type: "LINGUAAI_ANALYZE", text, mode: "full" }, (resp) => {
-    analyzeBtn.disabled = false;
-    if (!resp?.ok) {
-      resultsEl.innerHTML = '<div class="result-error">Analysis failed: ' + escapeHtml(resp?.error || "unknown error") + '</div><div class="result-error-sub">Make sure your Sarvam AI API key is set in Options.</div>';
-      return;
+
+  chrome.runtime.sendMessage(
+    { type: "LINGUAAI_ANALYZE", text, mode: "full" },
+    (resp) => {
+      analyzeBtn.disabled = false;
+      if (!resp?.ok) {
+        resultsEl.innerHTML = `
+          <div class="result-error">Analysis failed: ${escapeHtml(resp?.error || "unknown error")}</div>
+          <div class="result-error-sub">Make sure your Sarvam AI API key is set in Options.</div>
+        `;
+        return;
+      }
+      renderResults(text, resp.data);
     }
-    renderResults(text, resp.data);
-  });
+  );
 }
 
 function renderResults(originalText, data) {
   const issues = (data.issues || []).filter((i) => i && i.original && i.suggestion);
+
   let html = "";
+
+  // Score
   if (typeof data.overallScore === "number") {
-    html += '<div class="score-bar"><span class="score-label">Writing Score</span><span class="score-value">' + data.overallScore + '/100</span></div>';
+    html += `
+      <div class="score-bar">
+        <span class="score-label">Writing Score</span>
+        <span class="score-value">${data.overallScore}/100</span>
+      </div>
+    `;
   }
+
   if (issues.length === 0) {
-    html += '<div class="result-empty"><div class="result-empty-icon">✓</div><div class="result-empty-title">All clear!</div><div class="result-empty-sub">No issues detected in your text.</div></div>';
+    html += `
+      <div class="result-empty">
+        <div class="result-empty-icon">✓</div>
+        <div class="result-empty-title">All clear!</div>
+        <div class="result-empty-sub">No issues detected in your text.</div>
+      </div>
+    `;
     if (data.correctedText && data.correctedText !== originalText) {
-      html += '<button class="accept-all" id="useCorrected">Use corrected version</button>';
+      html += `<button class="accept-all" id="useCorrected">Use corrected version</button>`;
     }
     resultsEl.innerHTML = html;
     const useBtn = document.getElementById("useCorrected");
@@ -62,9 +96,28 @@ function renderResults(originalText, data) {
     }
     return;
   }
-  html += issues.map((i, idx) => '<div class="issue-card" data-idx="' + idx + '"><span class="issue-badge badge-' + (i.severity || "suggestion") + '">' + escapeHtml(i.type || "issue") + '</span><div class="issue-fix"><span class="fix-orig">' + escapeHtml(i.original) + '</span><span class="fix-arrow">→</span><span class="fix-new">' + escapeHtml(i.suggestion) + '</span></div>' + (i.explanation ? '<div class="issue-explain">' + escapeHtml(i.explanation) + '</div>' : "") + '<button class="issue-accept" data-idx="' + idx + '">Apply fix</button></div>').join("");
-  html += '<button class="accept-all" id="acceptAll">Accept all (' + issues.length + ')</button>';
+
+  html += issues
+    .map(
+      (i, idx) => `
+      <div class="issue-card" data-idx="${idx}">
+        <span class="issue-badge badge-${i.severity || "suggestion"}">${escapeHtml(i.type || "issue")}</span>
+        <div class="issue-fix">
+          <span class="fix-orig">${escapeHtml(i.original)}</span>
+          <span class="fix-arrow">→</span>
+          <span class="fix-new">${escapeHtml(i.suggestion)}</span>
+        </div>
+        ${i.explanation ? `<div class="issue-explain">${escapeHtml(i.explanation)}</div>` : ""}
+        <button class="issue-accept" data-idx="${idx}">Apply fix</button>
+      </div>
+    `
+    )
+    .join("");
+
+  html += `<button class="accept-all" id="acceptAll">Accept all (${issues.length})</button>`;
   resultsEl.innerHTML = html;
+
+  // Wire individual accept
   resultsEl.querySelectorAll(".issue-accept").forEach((btn) => {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.getAttribute("data-idx"), 10);
@@ -73,13 +126,16 @@ function renderResults(originalText, data) {
       const current = editor.value;
       const pos = current.indexOf(issue.original);
       if (pos >= 0) {
-        editor.value = current.slice(0, pos) + issue.suggestion + current.slice(pos + issue.original.length);
+        editor.value =
+          current.slice(0, pos) + issue.suggestion + current.slice(pos + issue.original.length);
         btn.closest(".issue-card").style.opacity = "0.4";
         btn.disabled = true;
         btn.textContent = "Applied";
       }
     });
   });
+
+  // Wire accept all
   const acceptAllBtn = document.getElementById("acceptAll");
   if (acceptAllBtn) {
     acceptAllBtn.addEventListener("click", () => {
@@ -95,11 +151,13 @@ function renderResults(originalText, data) {
         }
         editor.value = text;
       }
-      resultsEl.innerHTML = '<div class="result-empty"><div class="result-empty-icon">✓</div><div class="result-empty-title">All fixes applied!</div></div>';
+      resultsEl.innerHTML =
+        '<div class="result-empty"><div class="result-empty-icon">✓</div><div class="result-empty-title">All fixes applied!</div></div>';
     });
   }
 }
 
+// --- Event listeners ---
 analyzeBtn.addEventListener("click", analyze);
 editor.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -109,5 +167,7 @@ editor.addEventListener("keydown", (e) => {
 });
 settingsBtn.addEventListener("click", () => chrome.runtime.openOptionsPage());
 optionsLink.addEventListener("click", () => chrome.runtime.openOptionsPage());
+
+// --- Init ---
 checkStatus();
 editor.focus();
