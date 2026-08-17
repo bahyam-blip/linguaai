@@ -9,6 +9,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -37,6 +39,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var onboardingBox: LinearLayout
     private lateinit var enableStatus: TextView
     private lateinit var enableBtn: Button
+    private lateinit var restrictedBtn: Button
+    private lateinit var restrictedInfo: TextView
     private var currentText = ""
     private var currentAnalysis: LinguaAIApi.Analysis? = null
     private var analyzeDebounce: Runnable? = null
@@ -120,10 +124,27 @@ class MainActivity : ComponentActivity() {
         onboardingBox.addView(TextView(this).apply { text = "Enable Floating Assistant"; setTextColor(cEmD); textSize = 15f; typeface = Typeface.DEFAULT_BOLD })
         onboardingBox.addView(TextView(this).apply { text = "Turn on the accessibility service to get real-time grammar, vocabulary, and style suggestions as you type in any app — WhatsApp, Gmail, anywhere. A floating bubble will appear when you're writing."; setTextColor(cTS); textSize = 12f; setLineSpacing(2f, 1f); setPadding(0, dp(6), 0, dp(12)) })
         enableStatus = TextView(this).apply { text = "⚠ Not enabled yet"; setTextColor(cWaTx); textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setPadding(0, 0, 0, dp(8)) }
+        restrictedInfo = TextView(this).apply { text = "⚠ Android 13+ Restricted Settings — If the accessibility toggle is greyed out, you need to allow restricted settings first. Tap the button below, then go to: More → Allow restricted settings."; setBackgroundColor(cAm); setTextColor(cWaTx); textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setLineSpacing(2f, 1f); setPadding(dp(10), dp(8), dp(10), dp(8)); visibility = if (Build.VERSION.SDK_INT >= 33) View.VISIBLE else View.GONE }
+        onboardingBox.addView(restrictedInfo)
+        restrictedBtn = Button(this).apply { text = "Step 1: Allow Restricted Settings"; setBackgroundColor(cAm); setTextColor(cW); textSize = 13f; visibility = if (Build.VERSION.SDK_INT >= 33) View.VISIBLE else View.GONE; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT); setOnClickListener { openAppInfoForRestrictedSettings() } }
+        onboardingBox.addView(restrictedBtn)
         onboardingBox.addView(enableStatus)
-        enableBtn = Button(this).apply { text = "Open Accessibility Settings"; setBackgroundColor(cEm); setTextColor(cW); textSize = 13f; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT); setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } }
+        enableBtn = Button(this).apply { text = if (Build.VERSION.SDK_INT >= 33) "Step 2: Open Accessibility Settings" else "Open Accessibility Settings"; setBackgroundColor(cEm); setTextColor(cW); textSize = 13f; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT); setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } }
         onboardingBox.addView(enableBtn)
         return onboardingBox
+    }
+
+    private fun openAppInfoForRestrictedSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            Toast.makeText(this, "Tap More (⋮) → Allow restricted settings", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open App Info", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun buildScoreBar(): View {
@@ -177,7 +198,7 @@ class MainActivity : ComponentActivity() {
     private fun updateA11yStatus() {
         val enabled = isA11yEnabled()
         if (enabled) { onboardingBox.visibility = View.GONE }
-        else { onboardingBox.visibility = View.VISIBLE; enableStatus.text = "⚠ Not enabled yet — tap below to turn on"; enableStatus.setTextColor(cWaTx); enableBtn.text = "Open Accessibility Settings" }
+        else { onboardingBox.visibility = View.VISIBLE; enableStatus.text = if (Build.VERSION.SDK_INT >= 33) "❌ Not enabled yet — Tap Step 1 below first, then Step 2" else "❌ Not enabled yet — Tap below to turn on"; enableStatus.setTextColor(cWaTx); enableBtn.text = if (Build.VERSION.SDK_INT >= 33) "Step 2: Open Accessibility Settings" else "Open Accessibility Settings" }
     }
 
     private fun isA11yEnabled(): Boolean {
