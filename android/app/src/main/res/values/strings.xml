@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LinguaAI</string>
-    <string name="tagline">AI grammar &amp; writing assistant</string>
+    <string name="accessibility_service_description">LinguaAI Floating Writing Assistant — monitors text you type in any app to provide real-time grammar, spelling, vocabulary, tone, and style suggestions. Text is sent securely to our AI backend for analysis and never stored.</string>
+    <string name="accessibility_service_label">LinguaAI Assistant</string>
 </resources>
