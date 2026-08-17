@@ -6,7 +6,7 @@ import {
   Check, CircleAlert, CircleCheck, Clipboard, Copy, Lightbulb, Loader2, PenLine,
   Sparkles, SpellCheck, Trash2, TrendingUp, Volume2, Wand2, BookOpen, Smile, Gauge,
   Clock, Hash, Type, Download, Settings, Send, Languages, Bot, RefreshCw, ChevronDown,
-  Target, FileText, Zap, Heart, AlertCircle, X, Plus, History, BarChart3,
+  Target, FileText, Zap, Heart, AlertCircle, X, Plus, History, BarChart3, ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -361,147 +361,75 @@ export default function Home() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20">
-        {/* Header */}
-        <header className="border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+      <div className="h-screen flex flex-col bg-gray-50 dark:bg-slate-950">
+        {/* ---------- Top bar ---------- */}
+        <header className="shrink-0 border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+          <div className="px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+            {/* Brand */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 shrink-0 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm shadow-emerald-500/30">
                 <SpellCheck className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+              <div className="min-w-0">
+                <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight flex items-center gap-1.5">
                   LinguaAI
                 </h1>
-                <p className="text-[11px] text-muted-foreground -mt-0.5 hidden sm:block">
-                  Advanced AI writing assistant · grammar · tone · rewrite · translate
+                <p className="text-[11px] text-gray-500 dark:text-slate-400 leading-tight hidden sm:block">
+                  AI writing assistant
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {/* Writing goal selector */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Target className="w-4 h-4 mr-1.5" />
-                    <span className="hidden sm:inline">{WRITING_GOALS.find(g => g.id === goal)?.label || "Goal"}</span>
-                    <ChevronDown className="w-3 h-3 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuLabel>Writing goal</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {WRITING_GOALS.map((g) => (
-                    <DropdownMenuItem key={g.id} onClick={() => { setGoal(g.id); if (text) analyze(text, g.id); }} className="flex flex-col items-start gap-0.5 py-2">
-                      <div className="flex items-center gap-2">
-                        <g.icon className="w-3.5 h-3.5" />
-                        <span className="text-sm font-medium">{g.label}</span>
-                        {goal === g.id && <Check className="w-3 h-3 ml-auto text-emerald-600" />}
-                      </div>
-                      <span className="text-[10px] text-muted-foreground pl-5">{g.desc}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
 
-              {/* Rewrite menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" disabled={!text.trim() || rewriteLoading}>
-                    {rewriteLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Wand2 className="w-4 h-4 mr-1.5" />}
-                    <span className="hidden sm:inline">Rewrite</span>
-                    <ChevronDown className="w-3 h-3 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Transform text</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {REWRITE_ACTIONS.map((a) => (
-                    <DropdownMenuItem key={a.id} onClick={() => callRewrite(a.id)}>
-                      <a.icon className="w-3.5 h-3.5 mr-2" />
-                      <span className="text-sm">{a.label}</span>
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase">Change tone</DropdownMenuLabel>
-                  <div className="grid grid-cols-2 gap-1 p-1">
-                    {TONE_ACTIONS.map((t) => (
-                      <Button key={t.id} variant="ghost" size="sm" className="h-7 text-[11px] justify-start" onClick={() => callRewrite(t.id)}>
-                        {t.label}
-                      </Button>
-                    ))}
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase">Translate</DropdownMenuLabel>
-                  <div className="grid grid-cols-3 gap-1 p-1">
-                    {LANGUAGES.map((l) => (
-                      <Button key={l} variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => callRewrite("translate", { targetLang: l })}>
-                        {l}
-                      </Button>
-                    ))}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            {/* Assistant toggle + settings */}
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-2 pr-2 border-r border-gray-200 dark:border-slate-800">
+                <span className="text-xs font-medium text-gray-600 dark:text-slate-300">Assistant</span>
+                <Switch
+                  checked={assistantEnabled}
+                  onCheckedChange={setAssistantEnabled}
+                  className="data-[state=checked]:bg-emerald-500"
+                />
+              </div>
 
-              <Button variant="ghost" size="sm" onClick={loadSample} className="hidden sm:flex">
-                <Sparkles className="w-4 h-4 mr-1.5" /> Sample
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => analyze(text)} disabled={loading || !text.trim() || !assistantEnabled}>
-                {loading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-                <span className="hidden sm:inline">Re-check</span>
-              </Button>
-              {/* Grammarly-style assistant toggle */}
               <Popover open={showTogglePanel} onOpenChange={setShowTogglePanel}>
                 <PopoverTrigger asChild>
-                  <Button variant={assistantEnabled ? "outline" : "ghost"} size="sm" className={assistantEnabled ? "border-emerald-300 text-emerald-700" : "text-muted-foreground"}>
-                    <Settings className="w-4 h-4 mr-1.5" />
-                    <span className="hidden sm:inline">Assistant</span>
-                    <div className={`ml-1.5 w-7 h-4 rounded-full transition-colors relative ${assistantEnabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"}`}>
-                      <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${assistantEnabled ? "translate-x-3.5" : "translate-x-0.5"}`} />
-                    </div>
+                  <Button variant="outline" size="sm" className="gap-1.5 h-9 border-gray-200 dark:border-slate-800 text-gray-700 dark:text-slate-200">
+                    <Settings className="w-4 h-4" />
+                    <span className="hidden sm:inline">Categories</span>
+                    <ChevronDown className="w-3.5 h-3.5 opacity-60" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-72 p-0">
-                  <div className="p-3 border-b">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${assistantEnabled ? "bg-emerald-100 dark:bg-emerald-950" : "bg-slate-100 dark:bg-slate-800"}`}>
-                          <SpellCheck className={`w-4 h-4 ${assistantEnabled ? "text-emerald-600" : "text-slate-400"}`} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold">Writing Assistant</p>
-                          <p className="text-[10px] text-muted-foreground">{assistantEnabled ? "Active — real-time checking" : "Paused"}</p>
-                        </div>
-                      </div>
-                      <Switch checked={assistantEnabled} onCheckedChange={(v) => { setAssistantEnabled(v); if (v && text.trim()) setTimeout(() => analyze(text), 100); }} />
+                <PopoverContent className="w-72 p-0" align="end">
+                  <div className="px-3 py-2.5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-800 dark:text-slate-100">Check categories</span>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] text-emerald-600 hover:text-emerald-700"
+                        onClick={() => setCategoryToggles({ grammar: true, spelling: true, punctuation: true, style: true, clarity: true, vocabulary: true, capitalization: true })}>
+                        Enable all
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] text-gray-500 hover:text-gray-700"
+                        onClick={() => setCategoryToggles({ grammar: false, spelling: false, punctuation: false, style: false, clarity: false, vocabulary: false, capitalization: false })}>
+                        Disable all
+                      </Button>
                     </div>
                   </div>
-                  <div className="p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">Check for</p>
-                    <div className="space-y-1">
-                      {ALL_ISSUE_TYPES.map((type) => (
-                        <div key={type} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                          <div className="flex items-center gap-2">
-                            {(() => { const Icon = ISSUE_TYPE_ICONS[type]; return <Icon className="w-3.5 h-3.5 text-muted-foreground" />; })()}
-                            <span className="text-sm">{TYPE_LABELS[type]}</span>
-                          </div>
+                  <div className="p-1">
+                    {ALL_ISSUE_TYPES.map((t) => {
+                      const Icon = ISSUE_TYPE_ICONS[t];
+                      return (
+                        <label key={t} className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800/60 cursor-pointer">
+                          <span className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
+                            <Icon className="w-3.5 h-3.5 text-gray-400" />
+                            {TYPE_LABELS[t]}
+                          </span>
                           <Switch
-                            checked={categoryToggles[type]}
-                            onCheckedChange={(v) => setCategoryToggles((prev) => ({ ...prev, [type]: v }))}
-                            disabled={!assistantEnabled}
+                            checked={categoryToggles[t]}
+                            onCheckedChange={(v) => setCategoryToggles((prev) => ({ ...prev, [t]: v }))}
+                            className="data-[state=checked]:bg-emerald-500"
                           />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="p-3 flex items-center justify-between">
-                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setCategoryToggles({ grammar: true, spelling: true, punctuation: true, style: true, clarity: true, vocabulary: true, capitalization: true })}>
-                      Enable all
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setCategoryToggles({ grammar: false, spelling: false, punctuation: false, style: false, clarity: false, vocabulary: false, capitalization: false })}>
-                      Disable all
-                    </Button>
+                        </label>
+                      );
+                    })}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -509,574 +437,254 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 h-[calc(100vh-180px)] min-h-[600px]">
-            {/* Editor Column */}
-            <div className="flex flex-col gap-4 min-h-0">
-              {/* Score bar */}
-              <Card className="border-emerald-200/50 dark:border-emerald-900/50 bg-white/60 dark:bg-slate-900/60 backdrop-blur">
-                <CardContent className="py-3 px-4 flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <div className="relative w-12 h-12">
-                      <svg className="w-12 h-12 -rotate-90" viewBox="0 0 36 36">
-                        <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" className="text-slate-200 dark:text-slate-800" />
-                        <circle cx="18" cy="18" r="15" fill="none" stroke="url(#scoreGrad)" strokeWidth="3"
-                          strokeDasharray={`${(overallScore / 100) * 94.25} 94.25`} strokeLinecap="round" className="transition-all duration-700" />
-                        <defs>
-                          <linearGradient id="scoreGrad" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stopColor={overallScore >= 80 ? "#10b981" : overallScore >= 60 ? "#f59e0b" : overallScore >= 40 ? "#f97316" : "#ef4444"} />
-                            <stop offset="100%" stopColor={overallScore >= 80 ? "#14b8a6" : overallScore >= 60 ? "#eab308" : overallScore >= 40 ? "#ea580c" : "#e11d48"} />
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className={`text-sm font-bold ${getScoreColor(overallScore)}`}>{overallScore || "—"}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">Writing Score</p>
-                      <p className="text-xs text-muted-foreground">{analysis ? `${visibleIssues.length} issues · ${tone?.tone || "—"} tone` : "Start typing to analyze"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {(["critical", "warning", "suggestion"] as Severity[]).map((sev) => (
-                      <Tooltip key={sev}>
-                        <TooltipTrigger asChild>
-                          <Badge variant="outline" className={SEVERITY_STYLES[sev].badge}>
-                            {issueCounts[sev]} {SEVERITY_STYLES[sev].label}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>{issueCounts[sev]} {SEVERITY_STYLES[sev].label.toLowerCase()} issues</TooltipContent>
-                      </Tooltip>
-                    ))}
-                    {visibleIssues.length > 0 && (
-                      <Button size="sm" onClick={acceptAll} className="bg-emerald-600 hover:bg-emerald-700">
-                        <CircleCheck className="w-4 h-4 mr-1.5" /> Accept all
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Editor */}
-              <Card className="flex-1 min-h-0 relative overflow-hidden">
-                <CardHeader className="py-3 px-4 border-b bg-slate-50/50 dark:bg-slate-900/50 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <PenLine className="w-4 h-4 text-emerald-600" /> Editor
-                  </CardTitle>
-                  <div className="flex items-center gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={pasteFromClipboard}>
-                          <Clipboard className="w-3.5 h-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Paste</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyText(text)} disabled={!text}>
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Copy</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={speakText} disabled={!text}>
-                          <Volume2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Read aloud</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={downloadText} disabled={!text}>
-                          <Download className="w-3.5 h-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Download</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600" onClick={clearText} disabled={!text}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Clear</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0 relative h-[calc(100%-49px)]">
-                  <div
-                    ref={highlightRef}
-                    aria-hidden
-                    className="absolute inset-0 px-4 py-4 overflow-auto pointer-events-auto whitespace-pre-wrap break-words text-base leading-7"
-                    style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
-                  >
-                    {renderHighlightedText()}
-                  </div>
-                  <textarea
-                    ref={editorRef}
-                    value={text}
-                    onChange={(e) => handleTextChange(e.target.value)}
-                    onScroll={handleScroll}
-                    placeholder="Start typing or paste your text here. LinguaAI analyzes grammar, spelling, style, vocabulary, tone, and clarity in real time."
-                    spellCheck={false}
-                    className="absolute inset-0 px-4 py-4 w-full h-full resize-none bg-transparent text-transparent caret-emerald-600 outline-none whitespace-pre-wrap break-words text-base leading-7"
-                    style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
-                  />
-                  <AnimatePresence>
-                    {loading && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-3 right-3 flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-3 py-1.5 rounded-full shadow-md border"
-                      >
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-                        <span className="text-xs font-medium">Analyzing...</span>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </CardContent>
-              </Card>
-
-              {/* AI Command Box */}
-              <Card className="border-emerald-200/50 dark:border-emerald-900/50">
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <input
-                      type="text"
-                      value={aiCommand}
-                      onChange={(e) => setAiCommand(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && sendAiCommand()}
-                      placeholder='Ask AI: "Make this more professional", "Turn into an email", "Make shorter"...'
-                      className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
-                    />
-                    <Button size="sm" onClick={sendAiCommand} disabled={!aiCommand.trim() || rewriteLoading} className="bg-emerald-600 hover:bg-emerald-700 h-7">
-                      {rewriteLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+        {/* ---------- Split layout ---------- */}
+        <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px]">
+          {/* ===== Left: editor ===== */}
+          <section className="flex flex-col min-h-0 border-r border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+            {/* Editor toolbar */}
+            <div className="shrink-0 px-4 sm:px-6 py-2.5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-500 hover:text-emerald-600" onClick={pasteFromClipboard}>
+                      <Clipboard className="w-4 h-4" />
                     </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {["Make professional", "Make shorter", "Make friendly", "Fix grammar", "Make confident"].map((q) => (
-                      <button
-                        key={q}
-                        onClick={() => { setAiCommand(q); setTimeout(() => callRewrite("ai_command", { instruction: q }), 50); }}
-                        className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-400 transition-colors"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Rewrite Result Panel */}
-              <AnimatePresence>
-                {(rewriteResult || rewriteLoading) && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-                    <Card className="border-emerald-300 dark:border-emerald-800 shadow-md">
-                      <CardHeader className="py-2 px-4 flex flex-row items-center justify-between border-b bg-emerald-50/50 dark:bg-emerald-950/30">
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          <Wand2 className="w-4 h-4 text-emerald-600" /> AI Rewrite
-                        </CardTitle>
-                        <div className="flex items-center gap-1">
-                          <Button size="sm" variant="ghost" className="h-7" onClick={() => rewriteResult && copyText(rewriteResult)} disabled={!rewriteResult}>
-                            <Copy className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7" onClick={() => setRewriteResult(null)}>
-                            <X className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4">
-                        {rewriteLoading ? (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" /> Generating rewrite...
-                          </div>
-                        ) : (
-                          <>
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{rewriteResult}</p>
-                            <div className="flex items-center gap-2 mt-3 pt-3 border-t">
-                              <Button size="sm" onClick={applyRewriteResult} className="bg-emerald-600 hover:bg-emerald-700">
-                                <Check className="w-3.5 h-3.5 mr-1" /> Replace original
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => copyText(rewriteResult!)}>
-                                <Copy className="w-3.5 h-3.5 mr-1" /> Copy
-                              </Button>
-                            </div>
-                          </>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Quick stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { label: "Words", value: stats?.wordCount ?? 0, icon: Hash },
-                  { label: "Characters", value: text.length, icon: Type },
-                  { label: "Reading", value: stats?.readingTime ?? "0 sec", icon: Clock },
-                  { label: "Readability", value: stats?.readabilityScore?.toFixed(0) ?? "—", icon: Gauge },
-                ].map((s) => (
-                  <Card key={s.label} className="border-slate-200/60">
-                    <CardContent className="p-3 flex items-center gap-2">
-                      <s.icon className="w-4 h-4 text-emerald-600" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">{s.label}</p>
-                        <p className="text-sm font-semibold">{s.value}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                  </TooltipTrigger>
+                  <TooltipContent>Paste</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-500 hover:text-emerald-600" onClick={() => copyText(text)} disabled={!text}>
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Copy</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-500 hover:text-emerald-600" onClick={downloadText} disabled={!text}>
+                      <Download className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Download</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-500 hover:text-emerald-600" onClick={speakText} disabled={!text}>
+                      <Volume2 className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Read aloud</TooltipContent>
+                </Tooltip>
+                <Separator orientation="vertical" className="h-5 mx-1" />
+                <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs text-gray-600 hover:text-emerald-600" onClick={loadSample}>
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Sample
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 px-2.5 text-xs text-gray-600 hover:text-red-600" onClick={clearText} disabled={!text}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Clear
+                </Button>
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-gray-400 dark:text-slate-500">
+                <span className="flex items-center gap-1"><Hash className="w-3 h-3" />{text.trim() ? text.trim().split(/\s+/).length : 0} words</span>
+                <span className="hidden sm:flex items-center gap-1"><Type className="w-3 h-3" />{text.length} chars</span>
               </div>
             </div>
 
-            {/* Sidebar */}
-            <div className="flex flex-col min-h-0">
-              <Card className="flex-1 min-h-0 flex flex-col">
-                <Tabs defaultValue="issues" className="flex-1 flex flex-col min-h-0">
-                  <CardHeader className="py-3 px-4 border-b">
-                    <TabsList className="grid grid-cols-5 w-full h-9">
-                      <TabsTrigger value="issues" className="text-xs">Issues {visibleIssues.length > 0 && <Badge className="ml-1 h-4 px-1 text-[10px] bg-emerald-600">{visibleIssues.length}</Badge>}</TabsTrigger>
-                      <TabsTrigger value="scores" className="text-xs">Scores</TabsTrigger>
-                      <TabsTrigger value="vocab" className="text-xs">Vocab {vocab.length > 0 && <Badge className="ml-1 h-4 px-1 text-[10px] bg-emerald-600">{vocab.length}</Badge>}</TabsTrigger>
-                      <TabsTrigger value="tone" className="text-xs">Tone</TabsTrigger>
-                      <TabsTrigger value="stats" className="text-xs">Stats</TabsTrigger>
-                    </TabsList>
-                  </CardHeader>
-                  <CardContent className="flex-1 p-0 min-h-0 overflow-hidden">
-                    {/* Issues */}
-                    <TabsContent value="issues" className="m-0 h-full data-[state=active]:flex flex-col">
-                      <ScrollArea className="h-full max-h-[calc(100vh-260px)]">
-                        <div className="p-3 space-y-2">
-                          {!analysis && !loading && (
-                            <div className="text-center py-12 px-4">
-                              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mb-3">
-                                <Lightbulb className="w-7 h-7 text-emerald-600" />
-                              </div>
-                              <p className="text-sm font-medium text-muted-foreground">No analysis yet</p>
-                              <p className="text-xs text-muted-foreground/70 mt-1">Start typing. LinguaAI will surface grammar, spelling, punctuation, style, and clarity issues here.</p>
-                            </div>
-                          )}
-                          {analysis && visibleIssues.length === 0 && !loading && (
-                            <div className="text-center py-12 px-4">
-                              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mb-3">
-                                <CircleCheck className="w-7 h-7 text-emerald-600" />
-                              </div>
-                              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">All clear!</p>
-                              <p className="text-xs text-muted-foreground/70 mt-1">No issues detected.</p>
-                            </div>
-                          )}
-                          <AnimatePresence>
-                            {analysis?.issues.map((issue, idx) => {
-                              if (dismissedIssues.has(idx) || acceptedFixes.has(idx)) return null;
-                              const style = SEVERITY_STYLES[issue.severity];
-                              const isActive = activeIssue === idx;
-                              return (
-                                <motion.div key={idx} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }}>
-                                  <Card className={`p-3 cursor-pointer transition-all hover:shadow-md ${isActive ? "ring-2 ring-emerald-500 shadow-md" : "hover:border-emerald-300"}`} onClick={() => setActiveIssue(isActive ? null : idx)}>
-                                    <div className="flex items-start justify-between gap-2 mb-2">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <Badge variant="outline" className={style.badge}>{TYPE_LABELS[issue.type]}</Badge>
-                                        <Badge variant="ghost" className="text-[10px] text-muted-foreground">{style.label}</Badge>
-                                      </div>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <div className="flex items-center gap-2 text-sm flex-wrap">
-                                        <span className="line-through text-red-600 dark:text-red-400">{issue.original}</span>
-                                        <span className="text-muted-foreground">→</span>
-                                        <span className="text-emerald-700 dark:text-emerald-400 font-medium">{issue.suggestion}</span>
-                                      </div>
-                                      <p className="text-xs text-muted-foreground leading-relaxed">{issue.explanation}</p>
-                                    </div>
-                                    {isActive && (
-                                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="flex items-center gap-2 mt-3 pt-3 border-t">
-                                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-7" onClick={(e) => { e.stopPropagation(); acceptFix(idx); }}>
-                                          <Check className="w-3.5 h-3.5 mr-1" /> Replace
-                                        </Button>
-                                        <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={(e) => { e.stopPropagation(); dismissIssue(idx); }}>
-                                          Ignore
-                                        </Button>
-                                        {issue.type === "spelling" && (
-                                          <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={(e) => { e.stopPropagation(); addToDictionary(issue.original); }}>
-                                            <Plus className="w-3.5 h-3.5 mr-1" /> Add to dictionary
-                                          </Button>
-                                        )}
-                                      </motion.div>
-                                    )}
-                                  </Card>
-                                </motion.div>
-                              );
-                            })}
-                          </AnimatePresence>
-                        </div>
-                      </ScrollArea>
-                    </TabsContent>
-
-                    {/* Scores */}
-                    <TabsContent value="scores" className="m-0 h-full data-[state=active]:block hidden">
-                      <ScrollArea className="h-full max-h-[calc(100vh-260px)]">
-                        <div className="p-3 space-y-2">
-                          {!analysis && (
-                            <div className="text-center py-12 px-4">
-                              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mb-3">
-                                <BarChart3 className="w-7 h-7 text-emerald-600" />
-                              </div>
-                              <p className="text-sm font-medium text-muted-foreground">Document scores</p>
-                              <p className="text-xs text-muted-foreground/70 mt-1">Detailed dimension scores appear here.</p>
-                            </div>
-                          )}
-                          {analysis && scores && (
-                            <>
-                              <Card className="p-4">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs text-muted-foreground">Overall writing score</span>
-                                  <span className={`text-sm font-bold ${getScoreColor(overallScore)}`}>{overallScore}/100</span>
-                                </div>
-                                <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700" style={{ width: `${overallScore}%` }} />
-                                </div>
-                              </Card>
-                              {[
-                                { label: "Grammar", value: scores.grammar, icon: SpellCheck, desc: "Correctness of grammar, spelling, punctuation" },
-                                { label: "Clarity", value: scores.clarity, icon: Lightbulb, desc: "How easy the text is to understand" },
-                                { label: "Readability", value: scores.readability, icon: Gauge, desc: "Flesch reading ease score" },
-                                { label: "Vocabulary", value: scores.vocabulary, icon: BookOpen, desc: "Word diversity and richness" },
-                                { label: "Tone", value: scores.tone, icon: Smile, desc: "Tone consistency and appropriateness" },
-                                { label: "Conciseness", value: scores.conciseness, icon: ChevronDown, desc: "Lack of unnecessary words" },
-                                { label: "Engagement", value: scores.engagement, icon: Heart, desc: "How engaging the writing is" },
-                              ].map((s) => (
-                                <Card key={s.label} className="p-3">
-                                  <div className="flex items-center justify-between mb-1.5">
-                                    <div className="flex items-center gap-2">
-                                      <s.icon className="w-3.5 h-3.5 text-emerald-600" />
-                                      <span className="text-sm font-medium">{s.label}</span>
-                                    </div>
-                                    <span className={`text-sm font-bold ${getScoreColor(s.value)}`}>{s.value}</span>
-                                  </div>
-                                  <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                    <div className={`h-full bg-gradient-to-r ${s.value >= 80 ? "from-emerald-500 to-teal-500" : s.value >= 60 ? "from-amber-500 to-yellow-500" : "from-red-500 to-rose-500"} transition-all duration-700`} style={{ width: `${s.value}%` }} />
-                                  </div>
-                                  <p className="text-[10px] text-muted-foreground mt-1.5">{s.desc}</p>
-                                </Card>
-                              ))}
-                              <Card className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <AlertCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span className="text-xs font-semibold">Top priority improvements</span>
-                                </div>
-                                <p className="text-[11px] text-muted-foreground">
-                                  {issueCounts.critical > 0 ? `Fix ${issueCounts.critical} critical issue${issueCounts.critical > 1 ? "s" : ""} first.` : "Polish style and clarity next."}
-                                </p>
-                              </Card>
-                            </>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </TabsContent>
-
-                    {/* Vocabulary */}
-                    <TabsContent value="vocab" className="m-0 h-full data-[state=active]:block hidden">
-                      <ScrollArea className="h-full max-h-[calc(100vh-260px)]">
-                        <div className="p-3 space-y-2">
-                          {!analysis && (
-                            <div className="text-center py-12 px-4">
-                              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mb-3">
-                                <BookOpen className="w-7 h-7 text-emerald-600" />
-                              </div>
-                              <p className="text-sm font-medium text-muted-foreground">Vocabulary suggestions</p>
-                            </div>
-                          )}
-                          {analysis && vocab.length === 0 && (
-                            <div className="text-center py-12 px-4">
-                              <CircleCheck className="w-8 h-8 mx-auto text-emerald-600 mb-2" />
-                              <p className="text-sm font-medium">Vocabulary is on point</p>
-                            </div>
-                          )}
-                          {vocab.map((v, idx) => (
-                            <motion.div key={idx} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}>
-                              <Card className="p-3">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <BookOpen className="w-4 h-4 text-emerald-600" />
-                                  <span className="text-sm font-medium line-through text-muted-foreground">{v.word}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5 mb-2">
-                                  {v.alternatives.map((alt, i) => (
-                                    <Button key={i} size="sm" variant="outline" className="h-6 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={() => {
-                                      const regex = new RegExp(`\\b${v.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-                                      const match = text.match(regex);
-                                      if (match && match.index !== undefined) {
-                                        const newText = text.slice(0, match.index) + alt + text.slice(match.index + match[0].length);
-                                        setText(newText);
-                                        toast.success(`Replaced "${v.word}" → "${alt}"`);
-                                        setTimeout(() => analyze(newText), 400);
-                                      }
-                                    }}>
-                                      {alt}
-                                    </Button>
-                                  ))}
-                                </div>
-                                <p className="text-xs text-muted-foreground">{v.reason}</p>
-                              </Card>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </TabsContent>
-
-                    {/* Tone */}
-                    <TabsContent value="tone" className="m-0 h-full data-[state=active]:block hidden">
-                      <ScrollArea className="h-full max-h-[calc(100vh-260px)]">
-                        <div className="p-3 space-y-3">
-                          {!analysis && (
-                            <div className="text-center py-12 px-4">
-                              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mb-3">
-                                <Smile className="w-7 h-7 text-emerald-600" />
-                              </div>
-                              <p className="text-sm font-medium text-muted-foreground">Tone analysis</p>
-                            </div>
-                          )}
-                          {analysis && tone && (
-                            <>
-                              <Card className="p-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Smile className="w-5 h-5 text-emerald-600" />
-                                  <h3 className="text-sm font-semibold">Detected Tone</h3>
-                                </div>
-                                <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">{tone.tone}</div>
-                                <div className="mt-2 flex items-center gap-2">
-                                  <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                    <div className="h-full bg-emerald-500 transition-all duration-700" style={{ width: `${tone.confidence}%` }} />
-                                  </div>
-                                  <span className="text-xs font-medium">{tone.confidence}%</span>
-                                </div>
-                              </Card>
-                              <div className="grid grid-cols-2 gap-2">
-                                <Card className="p-3">
-                                  <p className="text-xs text-muted-foreground mb-1">Formality</p>
-                                  <p className="text-sm font-semibold capitalize">{tone.formality}</p>
-                                </Card>
-                                <Card className="p-3">
-                                  <p className="text-xs text-muted-foreground mb-1">Sentiment</p>
-                                  <p className="text-sm font-semibold capitalize">{tone.sentiment}</p>
-                                </Card>
-                              </div>
-                              <Card className="p-3">
-                                <h3 className="text-xs font-semibold mb-2">Change tone</h3>
-                                <div className="grid grid-cols-2 gap-1.5">
-                                  {TONE_ACTIONS.map((t) => (
-                                    <Button key={t.id} size="sm" variant="outline" className="h-7 text-[11px] justify-start" disabled={rewriteLoading || !text} onClick={() => callRewrite(t.id)}>
-                                      {t.label}
-                                    </Button>
-                                  ))}
-                                </div>
-                              </Card>
-                              {analysis.correctedText && analysis.correctedText !== text && (
-                                <Card className="p-4">
-                                  <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                                    <TrendingUp className="w-4 h-4 text-emerald-600" /> Corrected version
-                                  </h3>
-                                  <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap mb-2">{analysis.correctedText}</p>
-                                  <Button size="sm" variant="outline" className="w-full" onClick={() => { setText(analysis.correctedText); toast.success("Replaced"); setTimeout(() => analyze(analysis.correctedText), 400); }}>
-                                    Use this version
-                                  </Button>
-                                </Card>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </TabsContent>
-
-                    {/* Stats */}
-                    <TabsContent value="stats" className="m-0 h-full data-[state=active]:block hidden">
-                      <ScrollArea className="h-full max-h-[calc(100vh-260px)]">
-                        <div className="p-3 space-y-2">
-                          {!analysis && (
-                            <div className="text-center py-12 px-4">
-                              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mb-3">
-                                <Gauge className="w-7 h-7 text-emerald-600" />
-                              </div>
-                              <p className="text-sm font-medium text-muted-foreground">Writing statistics</p>
-                            </div>
-                          )}
-                          {analysis && stats && (
-                            <>
-                              <div className="grid grid-cols-2 gap-2">
-                                {[
-                                  { label: "Words", value: stats.wordCount },
-                                  { label: "Sentences", value: stats.sentenceCount },
-                                  { label: "Unique words", value: stats.uniqueWords },
-                                  { label: "Avg w/s", value: stats.averageWordsPerSentence },
-                                ].map((s) => (
-                                  <Card key={s.label} className="p-3">
-                                    <p className="text-xs text-muted-foreground mb-0.5">{s.label}</p>
-                                    <p className="text-lg font-bold">{s.value}</p>
-                                  </Card>
-                                ))}
-                              </div>
-                              <Card className="p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-xs text-muted-foreground">Readability (Flesch)</span>
-                                  <Badge variant="outline" className="text-xs">{getReadabilityLabel(stats.readabilityScore)}</Badge>
-                                </div>
-                                <div className="text-2xl font-bold text-emerald-600">{stats.readabilityScore.toFixed(0)}</div>
-                                <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden mt-2">
-                                  <div className="h-full bg-emerald-500 transition-all duration-700" style={{ width: `${stats.readabilityScore}%` }} />
-                                </div>
-                              </Card>
-                              <Card className="p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-xs text-muted-foreground">Lexical diversity</span>
-                                  <span className="text-sm font-bold">{(stats.lexicalDiversity * 100).toFixed(0)}%</span>
-                                </div>
-                                <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                  <div className="h-full bg-emerald-500 transition-all duration-700" style={{ width: `${stats.lexicalDiversity * 100}%` }} />
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-2">Ratio of unique words to total words.</p>
-                              </Card>
-                              <Card className="p-3 flex items-center gap-3">
-                                <Clock className="w-5 h-5 text-emerald-600" />
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Reading time</p>
-                                  <p className="text-sm font-semibold">{stats.readingTime}</p>
-                                </div>
-                              </Card>
-                              {dictionary.length > 0 && (
-                                <Card className="p-3">
-                                  <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1"><BookOpen className="w-3 h-3" /> Personal dictionary ({dictionary.length})</p>
-                                  <div className="flex flex-wrap gap-1">
-                                    {dictionary.map((w) => (
-                                      <Badge key={w} variant="outline" className="text-[10px]">{w}</Badge>
-                                    ))}
-                                  </div>
-                                </Card>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </TabsContent>
-                  </CardContent>
-                </Tabs>
-              </Card>
+            {/* Textarea */}
+            <div className="flex-1 min-h-0 relative">
+              <textarea
+                ref={editorRef}
+                value={text}
+                onChange={(e) => handleTextChange(e.target.value)}
+                onScroll={handleScroll}
+                placeholder="Start writing or paste your text here… LinguaAI will check grammar, spelling, clarity, and tone in real time."
+                spellCheck={false}
+                className="absolute inset-0 w-full h-full resize-none bg-transparent px-4 sm:px-8 py-6 text-[15px] leading-7 text-gray-800 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-600 focus:outline-none"
+              />
+              {loading && (
+                <div className="absolute top-3 right-4 flex items-center gap-1.5 text-xs text-emerald-600 bg-white/80 dark:bg-slate-950/80 backdrop-blur px-2.5 py-1 rounded-full shadow-sm border border-gray-100 dark:border-slate-800">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Checking…
+                </div>
+              )}
             </div>
-          </div>
-        </main>
 
-        <footer className="mt-auto border-t bg-white/60 dark:bg-slate-950/60 backdrop-blur py-3">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-            <span>LinguaAI · Powered by Sarvam AI · Real-time grammar, vocabulary, tone, rewrite & translation</span>
-            <span className="hidden sm:flex items-center gap-1">
-              <CircleAlert className="w-3 h-3" /> APK + extension + advanced editor available in <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800">/download</code>
-            </span>
-          </div>
-        </footer>
+            {/* Bottom action bar: Check + score */}
+            <div className="shrink-0 border-t border-gray-100 dark:border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 bg-gray-50/60 dark:bg-slate-900/40">
+              <Button
+                size="sm"
+                onClick={() => analyze(text)}
+                disabled={!text.trim() || loading || !assistantEnabled}
+                className="gap-1.5 h-9 px-4 bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-500/20"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                Check
+              </Button>
+
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 leading-none">Score</p>
+                  <p className={`text-lg font-bold leading-tight ${getScoreColor(overallScore)}`}>
+                    {analysis ? overallScore : "—"}
+                  </p>
+                </div>
+                <div className="relative w-11 h-11">
+                  <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44">
+                    <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-gray-200 dark:text-slate-800" />
+                    <circle
+                      cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"
+                      className={getScoreColor(overallScore)}
+                      strokeDasharray={`${2 * Math.PI * 18}`}
+                      strokeDashoffset={`${2 * Math.PI * 18 * (1 - (analysis ? overallScore : 0) / 100)}`}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-gray-500 dark:text-slate-400">
+                    {analysis ? `${overallScore}` : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ===== Right: suggestions panel ===== */}
+          <aside className="flex flex-col min-h-0 bg-gray-50 dark:bg-slate-950">
+            {/* Panel header */}
+            <div className="shrink-0 px-4 py-3 border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-md bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center shrink-0">
+                  <Lightbulb className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">Suggestions</h2>
+                  <p className="text-[11px] text-gray-500 dark:text-slate-400 leading-tight">
+                    {analysis ? `${visibleIssues.length} issue${visibleIssues.length === 1 ? "" : "s"} found` : "Run a check to see suggestions"}
+                  </p>
+                </div>
+              </div>
+              {analysis && visibleIssues.length > 0 && (
+                <Button size="sm" variant="outline"
+                  className="h-8 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-500/30 dark:text-emerald-400"
+                  onClick={acceptAll}>
+                  <Check className="w-3.5 h-3.5" /> Accept all
+                </Button>
+              )}
+            </div>
+
+            {/* Stats summary by issue type */}
+            {analysis && (
+              <div className="shrink-0 px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                <div className="flex flex-wrap gap-1.5">
+                  {ALL_ISSUE_TYPES.map((t) => {
+                    const count = analysis.issues.filter((i) => i.type === t).length;
+                    if (count === 0) return null;
+                    return (
+                      <Badge key={t} variant="outline" className="text-[10px] py-0.5 px-2 gap-1 bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300">
+                        {TYPE_LABELS[t]} <span className="font-semibold text-gray-800 dark:text-slate-100">{count}</span>
+                      </Badge>
+                    );
+                  })}
+                  {analysis.issues.length === 0 && (
+                    <span className="text-[11px] text-emerald-600 flex items-center gap-1"><CircleCheck className="w-3.5 h-3.5" /> No issues detected</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Issue list */}
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-3 space-y-2.5">
+                {!analysis && !loading && !error && (
+                  <div className="flex flex-col items-center justify-center text-center py-16 px-6">
+                    <div className="w-14 h-14 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center mb-3">
+                      <PenLine className="w-6 h-6 text-emerald-500" />
+                    </div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-slate-200">No suggestions yet</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 max-w-[220px]">Write something and hit Check to get grammar, clarity and tone suggestions.</p>
+                  </div>
+                )}
+
+                {loading && !analysis && (
+                  <div className="flex flex-col items-center justify-center py-16 gap-2">
+                    <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+                    <p className="text-xs text-gray-400">Analyzing your text…</p>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+                  </div>
+                )}
+
+                {analysis && visibleIssues.length === 0 && !loading && (
+                  <div className="flex flex-col items-center justify-center text-center py-16 px-6">
+                    <div className="w-14 h-14 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center mb-3">
+                      <CircleCheck className="w-7 h-7 text-emerald-500" />
+                    </div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-slate-200">All clear!</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">No issues to address in your text.</p>
+                  </div>
+                )}
+
+                <AnimatePresence initial={false}>
+                  {visibleIssues.map((issue, i) => {
+                    const originalIdx = analysis!.issues.indexOf(issue);
+                    const sev = SEVERITY_STYLES[issue.severity];
+                    const Icon = ISSUE_TYPE_ICONS[issue.type];
+                    return (
+                      <motion.div
+                        key={`${originalIdx}-${i}`}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.18 }}
+                      >
+                        <Card className="p-3.5 border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow">
+                          {/* Badge row */}
+                          <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
+                            <Badge variant="outline" className={`text-[10px] py-0 px-2 gap-1 font-medium border ${sev.badge}`}>
+                              <Icon className="w-3 h-3" />
+                              {TYPE_LABELS[issue.type]}
+                            </Badge>
+                            <Badge variant="outline" className={`text-[10px] py-0 px-2 font-medium border ${sev.badge}`}>
+                              {sev.label}
+                            </Badge>
+                          </div>
+
+                          {/* Original -> suggestion */}
+                          <div className="flex items-start gap-2 mb-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] text-gray-400 dark:text-slate-500 mb-0.5">Original</p>
+                              <p className="text-sm text-red-600 dark:text-red-400 line-through decoration-red-300/70 break-words">{issue.original || "—"}</p>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-gray-300 dark:text-slate-600 shrink-0 mt-5" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] text-gray-400 dark:text-slate-500 mb-0.5">Suggestion</p>
+                              <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium break-words">{issue.suggestion || "—"}</p>
+                            </div>
+                          </div>
+
+                          {/* Explanation */}
+                          <p className="text-xs text-gray-500 dark:text-slate-400 mb-3 leading-relaxed">{issue.explanation}</p>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" className="h-8 gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white" onClick={() => acceptFix(originalIdx)}>
+                              <Check className="w-3.5 h-3.5" /> Apply fix
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-8 text-gray-500 hover:text-gray-700 dark:hover:text-slate-200" onClick={() => dismissIssue(originalIdx)}>
+                              <X className="w-3.5 h-3.5" /> Dismiss
+                            </Button>
+                          </div>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            </ScrollArea>
+          </aside>
+        </main>
       </div>
     </TooltipProvider>
   );
