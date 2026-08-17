@@ -7,6 +7,10 @@ android {
     namespace = "com.linguaai.app"
     compileSdk = 34
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.linguaai.app"
         minSdk = 24
@@ -14,8 +18,8 @@ android {
         versionCode = 4
         versionName = "2.0.0"
         vectorDrawables.useSupportLibrary = true
-            buildConfigField("String", "SUPABASE_URL", "\"${project.findProperty("SUPABASE_URL") ?: System.getenv("SUPABASE_URL") ?: ""}\"")
-            buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.findProperty("SUPABASE_ANON_KEY") ?: System.getenv("SUPABASE_ANON_KEY") ?: ""}\"")
+        buildConfigField("String", "SUPABASE_URL", "\"${project.findProperty("SUPABASE_URL") ?: System.getenv("SUPABASE_URL") ?: ""}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.findProperty("SUPABASE_ANON_KEY") ?: System.getenv("SUPABASE_ANON_KEY") ?: ""}\"")
     }
 
     signingConfigs {
@@ -32,23 +36,19 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             signingConfig = signingConfigs.getByName("release")
-            buildConfigField("String", "SUPABASE_URL", "\"${project.findProperty("SUPABASE_URL") ?: System.getenv("SUPABASE_URL") ?: ""}\"")
-            buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.findProperty("SUPABASE_ANON_KEY") ?: System.getenv("SUPABASE_ANON_KEY") ?: ""}\"")
             // Ensure all APK signature schemes are applied (v1+v2+v3)
             // This fixes "app can't be installed" on Samsung/Xiaomi/Huawei devices
             // that reject debug-signed or v2-only APKs
         }
         debug {
             isMinifyEnabled = false
-            buildConfigField("String", "SUPABASE_URL", "\"${project.findProperty("SUPABASE_URL") ?: System.getenv("SUPABASE_URL") ?: ""}\"")
-            buildConfigField("String", "SUPABASE_ANON_KEY", "\"${project.findProperty("SUPABASE_ANON_KEY") ?: System.getenv("SUPABASE_ANON_KEY") ?: ""}\"")
         }
     }
 
     // Build a single universal APK (no splits) for maximum compatibility
     splits {
         abi {
-            isEnable = false
+            isEnabled = false
         }
     }
 
@@ -62,15 +62,15 @@ android {
 
     packaging {
         resources.excludes += setOf(
-            "META-INF/AL2.0",
-            "META-INF/LGPL2.1",
+            "META-INF/ALL2.0",
+            "META-INF/LHPL2.1",
             "META-INF/*.kotlin_module"
         )
     }
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("android.core:core-ktx:1.13.1")
+    implementation("android.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.9.0")
 }
